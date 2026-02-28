@@ -1,0 +1,11 @@
+[package]
+name = "ui"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+common = { path = "../common" }
+leptos = { version = "0.8.16", features = ["csr"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-web = "0.1"
