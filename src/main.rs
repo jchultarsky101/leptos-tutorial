@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 use tracing_web::MakeConsoleWriter;
 
 fn init_tracing() {
@@ -9,7 +9,7 @@ fn init_tracing() {
 
     let fmt_layer = fmt::layer()
         .with_ansi(false) // ANSI color codes are not supported in the browser console
-        .without_time()   // std::time is not available in WASM
+        .without_time() // std::time is not available in WASM
         .with_writer(MakeConsoleWriter);
 
     tracing_subscriber::registry()
