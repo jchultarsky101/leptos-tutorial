@@ -2,17 +2,18 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
 jobs:
-  check:
-    name: Check
+  # ── Shared formatting gate (runs once) ─────────────────────────────────────
+  fmt:
+    name: Formatting
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,17 +21,55 @@ jobs:
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown
-          components: rustfmt, clippy
-
-      - name: Cache dependencies
-        uses: Swatinem/rust-cache@v2
+          components: rustfmt
 
       - name: Check formatting
         run: cargo fmt --check
 
-      - name: Clippy
-        run: cargo clippy --target wasm32-unknown-unknown -- -D warnings
+  # ── WASM front-end (ui crate, common crate) ────────────────────────────────
+  check-wasm:
+    name: Check (WASM)
+    runs-on: ubuntu-latest
+    needs: fmt
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Build
-        run: cargo check --target wasm32-unknown-unknown
+      - name: Install stable toolchain with WASM target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: clippy
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Clippy (WASM)
+        run: cargo clippy --target wasm32-unknown-unknown -p ui -- -D warnings
+
+      - name: Check (WASM)
+        run: cargo check --target wasm32-unknown-unknown -p ui
+
+  # ── Native back-end (api crate, common crate) ──────────────────────────────
+  check-native:
+    name: Check (native)
+    runs-on: ubuntu-latest
+    needs: fmt
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Clippy (native)
+        run: cargo clippy -p api -p common -- -D warnings
+
+      - name: Check (native)
+        run: cargo check -p api -p common
+
+      - name: Test (native)
+        run: cargo test -p api -p common

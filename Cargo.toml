@@ -3,8 +3,32 @@ members = ["common", "ui", "api"]
 resolver = "2"
 
 [workspace.dependencies]
-tracing = "0.1"
+# Logging
+tracing            = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Serialisation
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Error handling
+thiserror = "2"
+
+# Validation
+garde = { version = "0.20", features = ["derive"] }
+
+# Async runtime
+tokio      = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
+bytes      = "1"
+
+# Web framework
+axum       = { version = "0.8", features = ["multipart"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+
+# OpenAPI
+utoipa            = { version = "5", features = ["axum_extras"] }
+utoipa-swagger-ui = { version = "9", features = ["axum"] }
 
 [profile.dist]
 inherits = "release"

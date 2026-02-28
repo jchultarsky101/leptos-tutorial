@@ -1,1 +1,7 @@
-// Shared types and utilities used by both `ui` and `api`.
+pub mod dto;
+pub mod error;
+pub mod model;
+pub mod path;
+
+pub use error::CatalogError;
+pub use path::CatalogPath;
