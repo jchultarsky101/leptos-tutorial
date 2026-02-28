@@ -1,5 +1,9 @@
 # leptos-tutorial
 
+[![CI](https://github.com/jchultarsky101/leptos-tutorial/actions/workflows/ci.yml/badge.svg)](https://github.com/jchultarsky101/leptos-tutorial/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/rust-stable-orange.svg)](https://www.rust-lang.org)
+
 A hands-on tutorial project for learning [Leptos](https://leptos.dev) — a reactive, full-stack web framework for Rust that compiles to WebAssembly.
 
 ## Prerequisites
