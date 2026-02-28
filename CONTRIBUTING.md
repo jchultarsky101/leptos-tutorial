@@ -10,6 +10,15 @@ Thank you for your interest in contributing! This document covers everything you
 | **wasm32 target** | `rustup target add wasm32-unknown-unknown` |
 | **Trunk** | `cargo install trunk` |
 
+## First-time setup
+
+After cloning, install the pre-commit hook that auto-formats staged files:
+
+```sh
+cp .github/hooks/pre-commit .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+```
+
 ## Development workflow
 
 ```sh
