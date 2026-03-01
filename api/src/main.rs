@@ -30,7 +30,11 @@ async fn main() {
 
     let router = routes::build_router(state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    let port: u16 = std::env::var("CATALOG_PORT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(3000);
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
     tracing::info!("listening on {addr}");
     tracing::info!("Swagger UI available at http://{addr}/swagger-ui/");
 
