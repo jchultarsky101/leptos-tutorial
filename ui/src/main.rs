@@ -1,6 +1,12 @@
-use leptos::prelude::*;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 use tracing_web::MakeConsoleWriter;
+
+mod api;
+mod app;
+mod components;
+mod error;
+
+use app::App;
 
 fn init_tracing() {
     let filter = option_env!("RUST_LOG")
@@ -8,8 +14,8 @@ fn init_tracing() {
         .unwrap_or_else(|| EnvFilter::new("warn"));
 
     let fmt_layer = fmt::layer()
-        .with_ansi(false) // ANSI color codes are not supported in the browser console
-        .without_time() // std::time is not available in WASM
+        .with_ansi(false)
+        .without_time()
         .with_writer(MakeConsoleWriter);
 
     tracing_subscriber::registry()
@@ -20,5 +26,5 @@ fn init_tracing() {
 
 fn main() {
     init_tracing();
-    leptos::mount::mount_to_body(|| view! { <p>"Hello, world!"</p> })
+    leptos::mount::mount_to_body(App);
 }

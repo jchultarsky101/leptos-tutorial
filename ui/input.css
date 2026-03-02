@@ -1,0 +1,5 @@
+@import "tailwindcss";
+
+/* Tell v4 where to scan for utility classes */
+@source "./src/**/*.rs";
+@source "./index.html";
