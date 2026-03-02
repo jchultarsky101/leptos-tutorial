@@ -64,31 +64,38 @@ pub struct CreateFolderRequest {
     pub name: String,
 }
 
-#[derive(Debug, Deserialize, Validate, ToSchema)]
-pub struct RenameFolderRequest {
-    #[garde(length(min = 1, max = 255))]
-    pub new_name: String,
-}
-
-/// Path is validated at deserialisation time by [`CatalogPath`]'s custom
-/// `Deserialize` impl; no additional garde rules are needed.
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct MoveFolderRequest {
-    pub new_parent_path: CatalogPath,
+/// Body for `PATCH /folders/{path}`.
+///
+/// At least one field must be `Some`. Supplying both renames and moves the
+/// folder in a single atomic operation.
+#[derive(Debug, Serialize, Deserialize, Validate, ToSchema)]
+pub struct PatchFolderRequest {
+    /// New name for the folder (1–255 chars). Omit to keep the current name.
+    #[garde(inner(length(min = 1, max = 255)))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// New parent path. Omit to keep the current parent.
+    #[garde(skip)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub new_parent_path: Option<CatalogPath>,
 }
 
 // ── File request bodies ───────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize, Validate, ToSchema)]
-pub struct RenameFileRequest {
-    #[garde(length(min = 1, max = 255))]
-    pub new_name: String,
-}
-
-/// Path is validated at deserialisation time; no additional garde rules needed.
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct MoveFileRequest {
-    pub new_folder_path: CatalogPath,
+/// Body for `PATCH /files/{path}`.
+///
+/// At least one field must be `Some`. Supplying both renames and moves the
+/// file in a single atomic operation.
+#[derive(Debug, Serialize, Deserialize, Validate, ToSchema)]
+pub struct PatchFileRequest {
+    /// New name for the file (1–255 chars). Omit to keep the current name.
+    #[garde(inner(length(min = 1, max = 255)))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// New parent folder path. Omit to keep the current folder.
+    #[garde(skip)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub new_folder_path: Option<CatalogPath>,
 }
 
 // ── Generic error response ────────────────────────────────────────────────────

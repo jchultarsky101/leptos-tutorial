@@ -6,7 +6,7 @@ use axum::{
 };
 use common::{
     CatalogPath,
-    dto::{CreateFolderRequest, MoveFolderRequest, RenameFolderRequest},
+    dto::{CreateFolderRequest, FolderDto, PatchFolderRequest},
 };
 use garde::Validate;
 
@@ -136,55 +136,62 @@ pub async fn delete_folder(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Rename a folder in place.
+/// Rename and/or move a folder in one atomic operation.
+///
+/// Supply `name` to rename, `new_parent_path` to move, or both to do both
+/// simultaneously. At least one field must be present.
 #[utoipa::path(
     patch,
-    path = "/folder-rename/{path}",
+    path = "/folders/{path}",
     params(("path" = String, Path, description = "Folder path (without leading slash)")),
-    request_body = common::dto::RenameFolderRequest,
+    request_body = common::dto::PatchFolderRequest,
     responses(
-        (status = 200, description = "Renamed",          body = common::dto::FolderDto),
+        (status = 200, description = "Updated",          body = common::dto::FolderDto),
         (status = 404, description = "Not found",        body = common::dto::ErrorResponse),
         (status = 409, description = "Name taken",       body = common::dto::ErrorResponse),
         (status = 422, description = "Validation error", body = common::dto::ErrorResponse),
     ),
     tag = "folders"
 )]
-pub async fn rename_folder(
+pub async fn patch_folder(
     State(state): State<AppState>,
     Path(raw): Path<String>,
-    Json(body): Json<RenameFolderRequest>,
+    Json(body): Json<PatchFolderRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     body.validate()
         .map_err(|e| ApiError::from(common::CatalogError::Validation(e.to_string())))?;
-    let path = decode_path(&raw)?;
-    let entry = state.metadata.rename_folder(&path, &body.new_name).await?;
-    Ok(Json(common::dto::FolderDto::from(entry)))
-}
+    if body.name.is_none() && body.new_parent_path.is_none() {
+        return Err(ApiError::from(common::CatalogError::Validation(
+            "at least one of 'name' or 'new_parent_path' must be provided".into(),
+        )));
+    }
 
-/// Move a folder (and its entire subtree) under a new parent.
-#[utoipa::path(
-    patch,
-    path = "/folder-move/{path}",
-    params(("path" = String, Path, description = "Folder path (without leading slash)")),
-    request_body = common::dto::MoveFolderRequest,
-    responses(
-        (status = 200, description = "Moved",            body = common::dto::FolderDto),
-        (status = 404, description = "Not found",        body = common::dto::ErrorResponse),
-        (status = 409, description = "Name taken",       body = common::dto::ErrorResponse),
-        (status = 422, description = "Invalid move",     body = common::dto::ErrorResponse),
-    ),
-    tag = "folders"
-)]
-pub async fn move_folder(
-    State(state): State<AppState>,
-    Path(raw): Path<String>,
-    Json(body): Json<MoveFolderRequest>,
-) -> Result<impl IntoResponse, ApiError> {
     let path = decode_path(&raw)?;
-    let entry = state
-        .metadata
-        .move_folder(&path, &body.new_parent_path)
-        .await?;
-    Ok(Json(common::dto::FolderDto::from(entry)))
+
+    // Determine the target name (supplied or current).
+    let new_name = body
+        .name
+        .as_deref()
+        .unwrap_or_else(|| path.name())
+        .to_owned();
+
+    // Determine the target parent (supplied or current).
+    let new_parent = match body.new_parent_path {
+        Some(p) => p,
+        None => path.parent().ok_or_else(|| {
+            ApiError::from(common::CatalogError::InvalidPath(
+                "root has no parent".into(),
+            ))
+        })?,
+    };
+
+    let new_path = new_parent.join(&new_name).map_err(ApiError::from)?;
+    if new_path == path {
+        return Err(ApiError::from(common::CatalogError::Validation(
+            "no changes: name and parent are both unchanged".into(),
+        )));
+    }
+
+    let entry = state.metadata.relocate_folder(&path, new_path).await?;
+    Ok(Json(FolderDto::from(entry)))
 }

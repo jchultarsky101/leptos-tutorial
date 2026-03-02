@@ -32,16 +32,12 @@ pub trait MetadataStore: Send + Sync + 'static {
         path: &'a CatalogPath,
     ) -> BoxFuture<'a, Result<(), CatalogError>>;
 
-    fn rename_folder<'a>(
+    /// Relocate a folder to `new_path`, which may differ in name, parent, or
+    /// both. All descendant folders and files are remapped atomically.
+    fn relocate_folder<'a>(
         &'a self,
-        path: &'a CatalogPath,
-        new_name: &'a str,
-    ) -> BoxFuture<'a, Result<FolderEntry, CatalogError>>;
-
-    fn move_folder<'a>(
-        &'a self,
-        path: &'a CatalogPath,
-        new_parent: &'a CatalogPath,
+        old_path: &'a CatalogPath,
+        new_path: CatalogPath,
     ) -> BoxFuture<'a, Result<FolderEntry, CatalogError>>;
 
     fn list_folder<'a>(
@@ -71,16 +67,13 @@ pub trait MetadataStore: Send + Sync + 'static {
         path: &'a CatalogPath,
     ) -> BoxFuture<'a, Result<(), CatalogError>>;
 
-    fn rename_file<'a>(
+    /// Relocate a file to `new_path`, which may differ in name, folder, or
+    /// both. The caller is responsible for renaming the physical file content
+    /// (via [`FileStore::rename`]) before calling this method.
+    fn relocate_file<'a>(
         &'a self,
-        path: &'a CatalogPath,
-        new_name: &'a str,
-    ) -> BoxFuture<'a, Result<FileEntry, CatalogError>>;
-
-    fn move_file<'a>(
-        &'a self,
-        path: &'a CatalogPath,
-        new_folder: &'a CatalogPath,
+        old_path: &'a CatalogPath,
+        new_path: CatalogPath,
     ) -> BoxFuture<'a, Result<FileEntry, CatalogError>>;
 }
 

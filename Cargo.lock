@@ -2392,10 +2392,17 @@ name = "ui"
 version = "0.1.0"
 dependencies = [
  "common",
+ "gloo-net",
  "leptos",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
  "tracing",
  "tracing-subscriber",
  "tracing-web",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

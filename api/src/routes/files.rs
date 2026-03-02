@@ -9,7 +9,7 @@ use bytes::Bytes;
 use chrono::Utc;
 use common::{
     CatalogPath,
-    dto::{FileDto, MoveFileRequest, RenameFileRequest},
+    dto::{FileDto, PatchFileRequest},
     model::FileEntry,
 };
 use garde::Validate;
@@ -170,68 +170,65 @@ pub async fn delete_file(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Rename a file in place.
+/// Rename and/or move a file in one atomic operation.
+///
+/// Supply `name` to rename, `new_folder_path` to move, or both to do both
+/// simultaneously. At least one field must be present.
 #[utoipa::path(
     patch,
-    path = "/file-rename/{path}",
+    path = "/files/{path}",
     params(("path" = String, Path, description = "File path (without leading slash)")),
-    request_body = common::dto::RenameFileRequest,
+    request_body = common::dto::PatchFileRequest,
     responses(
-        (status = 200, description = "Renamed",          body = common::dto::FileDto),
+        (status = 200, description = "Updated",          body = common::dto::FileDto),
         (status = 404, description = "Not found",        body = common::dto::ErrorResponse),
         (status = 409, description = "Name taken",       body = common::dto::ErrorResponse),
         (status = 422, description = "Validation error", body = common::dto::ErrorResponse),
     ),
     tag = "files"
 )]
-pub async fn rename_file(
+pub async fn patch_file(
     State(state): State<AppState>,
     Path(raw): Path<String>,
-    Json(body): Json<RenameFileRequest>,
+    Json(body): Json<PatchFileRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     body.validate()
         .map_err(|e| ApiError::from(common::CatalogError::Validation(e.to_string())))?;
+    if body.name.is_none() && body.new_folder_path.is_none() {
+        return Err(ApiError::from(common::CatalogError::Validation(
+            "at least one of 'name' or 'new_folder_path' must be provided".into(),
+        )));
+    }
+
     let path = decode_path(&raw)?;
-    let old_entry = state.metadata.get_file_entry(&path).await?;
-    let parent = old_entry.path.parent().ok_or_else(|| {
-        ApiError::from(common::CatalogError::InvalidPath(
-            "file has no parent".into(),
-        ))
-    })?;
-    let new_path = parent.join(&body.new_name).map_err(ApiError::from)?;
 
+    // Determine the target name (supplied or current).
+    let new_name = body
+        .name
+        .as_deref()
+        .unwrap_or_else(|| path.name())
+        .to_owned();
+
+    // Determine the target parent folder (supplied or current).
+    let new_parent = match body.new_folder_path {
+        Some(p) => p,
+        None => path.parent().ok_or_else(|| {
+            ApiError::from(common::CatalogError::InvalidPath(
+                "file has no parent".into(),
+            ))
+        })?,
+    };
+
+    let new_path = new_parent.join(&new_name).map_err(ApiError::from)?;
+    if new_path == path {
+        return Err(ApiError::from(common::CatalogError::Validation(
+            "no changes: name and folder are both unchanged".into(),
+        )));
+    }
+
+    // Rename the physical file first; if the metadata update fails the file
+    // store rename is the only inconsistency (acceptable for this impl).
     state.files.rename(&path, &new_path).await?;
-    let entry = state.metadata.rename_file(&path, &body.new_name).await?;
-    Ok(Json(FileDto::from(entry)))
-}
-
-/// Move a file to a different folder.
-#[utoipa::path(
-    patch,
-    path = "/file-move/{path}",
-    params(("path" = String, Path, description = "File path (without leading slash)")),
-    request_body = common::dto::MoveFileRequest,
-    responses(
-        (status = 200, description = "Moved",            body = common::dto::FileDto),
-        (status = 404, description = "Not found",        body = common::dto::ErrorResponse),
-        (status = 409, description = "Name taken",       body = common::dto::ErrorResponse),
-        (status = 422, description = "Validation error", body = common::dto::ErrorResponse),
-    ),
-    tag = "files"
-)]
-pub async fn move_file(
-    State(state): State<AppState>,
-    Path(raw): Path<String>,
-    Json(body): Json<MoveFileRequest>,
-) -> Result<impl IntoResponse, ApiError> {
-    let path = decode_path(&raw)?;
-    let name = path.name().to_owned();
-    let new_path = body.new_folder_path.join(&name).map_err(ApiError::from)?;
-
-    state.files.rename(&path, &new_path).await?;
-    let entry = state
-        .metadata
-        .move_file(&path, &body.new_folder_path)
-        .await?;
+    let entry = state.metadata.relocate_file(&path, new_path).await?;
     Ok(Json(FileDto::from(entry)))
 }

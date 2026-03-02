@@ -1,2 +1,5 @@
 [build]
 target = "ui/index.html"
+
+[tools]
+tailwindcss = "4.2.1"

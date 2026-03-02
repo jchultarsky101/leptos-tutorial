@@ -99,20 +99,25 @@ curl -s -X POST http://localhost:3000/folders/docs \
 # List /docs
 curl -s http://localhost:3000/folders/docs | jq
 
-# Rename /docs → /documentation
-curl -s -X PATCH http://localhost:3000/folder-rename/docs \
+# Rename /docs → /documentation  (name only)
+curl -s -X PATCH http://localhost:3000/folders/docs \
   -H 'Content-Type: application/json' \
-  -d '{"new_name":"documentation"}' | jq
+  -d '{"name":"documentation"}' | jq
 
-# Move /documentation/reports into /archive
+# Move /documentation/reports into /archive  (parent only)
 #   (create /archive first)
 curl -s -X POST http://localhost:3000/folders \
   -H 'Content-Type: application/json' \
   -d '{"name":"archive"}' | jq
 
-curl -s -X PATCH http://localhost:3000/folder-move/documentation/reports \
+curl -s -X PATCH http://localhost:3000/folders/documentation/reports \
   -H 'Content-Type: application/json' \
   -d '{"new_parent_path":"/archive"}' | jq
+
+# Rename AND move in one request (atomic)
+curl -s -X PATCH http://localhost:3000/folders/archive/reports \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"q1-reports","new_parent_path":"/documentation"}' | jq
 
 # Delete /documentation and all its contents
 curl -s -X DELETE http://localhost:3000/folders/documentation
@@ -133,15 +138,20 @@ curl -s http://localhost:3000/files/docs/readme.txt -o downloaded.txt
 curl -s -X PUT http://localhost:3000/files/docs/readme.txt \
   -F 'file=@./CHANGELOG.md' | jq
 
-# Rename /docs/readme.txt → /docs/notes.txt
-curl -s -X PATCH http://localhost:3000/file-rename/docs/readme.txt \
+# Rename /docs/readme.txt → /docs/notes.txt  (name only)
+curl -s -X PATCH http://localhost:3000/files/docs/readme.txt \
   -H 'Content-Type: application/json' \
-  -d '{"new_name":"notes.txt"}' | jq
+  -d '{"name":"notes.txt"}' | jq
 
-# Move /docs/notes.txt into /archive
-curl -s -X PATCH http://localhost:3000/file-move/docs/notes.txt \
+# Move /docs/notes.txt into /archive  (folder only)
+curl -s -X PATCH http://localhost:3000/files/docs/notes.txt \
   -H 'Content-Type: application/json' \
   -d '{"new_folder_path":"/archive"}' | jq
+
+# Rename AND move in one request (atomic)
+curl -s -X PATCH http://localhost:3000/files/archive/notes.txt \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"final-notes.txt","new_folder_path":"/documentation"}' | jq
 
 # Delete a file
 curl -s -X DELETE http://localhost:3000/files/archive/notes.txt
