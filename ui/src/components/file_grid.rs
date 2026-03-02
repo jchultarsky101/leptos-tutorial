@@ -101,7 +101,7 @@ pub fn FileGrid() -> impl IntoView {
     // ── Column widths (px) ────────────────────────────────────────────────────
 
     let name_w: RwSignal<f64> = RwSignal::new(320.0);
-    let size_w: RwSignal<f64> = RwSignal::new(110.0);
+    let size_w: RwSignal<f64> = RwSignal::new(80.0);
     let modified_w: RwSignal<f64> = RwSignal::new(140.0);
 
     // ── Drag state ────────────────────────────────────────────────────────────
