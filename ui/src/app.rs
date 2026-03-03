@@ -34,6 +34,11 @@ pub enum ModalState {
     Upload {
         folder_path: CatalogPath,
     },
+    DeleteConfirm {
+        items: Vec<SelectedItem>,
+        /// Number of files that will be removed inside selected folders.
+        file_count: usize,
+    },
 }
 
 /// A CSR-local resource (no `Send` requirement on the future).
@@ -55,11 +60,15 @@ pub fn App() -> impl IntoView {
         async move { api::list_folder(path).await }
     });
 
+    // Incremented after every catalog mutation so FolderTree can refresh.
+    let catalog_version: RwSignal<u32> = RwSignal::new(0_u32);
+
     provide_context(current_path);
     provide_context(selected);
     provide_context(modal);
     provide_context(error_msg);
     provide_context(contents);
+    provide_context(catalog_version);
 
     // ── Tree panel resize state ────────────────────────────────────────────────
     let tree_w: RwSignal<f64> = RwSignal::new(DEFAULT_TREE_W);
@@ -87,75 +96,89 @@ pub fn App() -> impl IntoView {
     }
 
     view! {
-        <div class="min-h-screen bg-gray-50">
-            // Full-viewport overlay while dragging the tree divider.
+        // Full-viewport flex column — no scroll on the outer shell.
+        <div class="h-screen flex flex-col bg-gray-50 overflow-hidden">
+            // Drag overlay while resizing the tree panel.
             <Show when=move || drag_active.get()>
                 <div class="fixed inset-0 z-50 cursor-col-resize" />
             </Show>
 
-            <header class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-2">
+            // ── App header ────────────────────────────────────────────────────
+            <header class="flex-shrink-0 bg-white border-b border-gray-200 \
+                           px-6 py-3 flex items-center gap-2">
                 <span class="material-symbols-outlined text-gray-700">"folder_open"</span>
-                <h1 class="text-sm font-semibold tracking-tight text-gray-900">"File Catalog"</h1>
+                <h1 class="text-sm font-semibold tracking-tight text-gray-900">
+                    "File Catalog"
+                </h1>
             </header>
 
-            <main class="px-6 py-4 max-w-7xl mx-auto">
-                <Show when=move || error_msg.get().is_some()>
-                    <div class="mb-4 p-3 bg-red-50 border border-red-200 rounded flex items-center justify-between gap-3">
-                        <div class="flex items-center gap-2">
-                            <span class="material-symbols-outlined text-red-500" style="font-size:18px;">"error"</span>
-                            <span class="text-sm text-red-700">
-                                {move || error_msg.get().unwrap_or_default()}
-                            </span>
-                        </div>
-                        <button
-                            class="text-red-400 hover:text-red-600 focus:outline-none"
-                            on:click=move |_| error_msg.set(None)
-                        >
-                            <span class="material-symbols-outlined" style="font-size:18px;">"close"</span>
-                        </button>
+            // ── Error banner (conditionally shown) ───────────────────────────
+            <Show when=move || error_msg.get().is_some()>
+                <div class="flex-shrink-0 px-6 py-2 bg-red-50 border-b border-red-200 \
+                             flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-red-500"
+                            style="font-size:18px;">"error"</span>
+                        <span class="text-sm text-red-700">
+                            {move || error_msg.get().unwrap_or_default()}
+                        </span>
                     </div>
-                </Show>
-
-                <Breadcrumb />
-                <Toolbar />
-
-                // ── Horizontal split: tree panel | divider | file grid ─────────
-                <div class="flex items-start gap-0">
-                    // Folder tree panel
-                    <div
-                        class="flex-shrink-0 bg-white border border-gray-200 rounded-lg \
-                               shadow-sm overflow-hidden"
-                        style=move || format!("width: {}px;", tree_w.get())
+                    <button
+                        class="text-red-400 hover:text-red-600 focus:outline-none"
+                        on:click=move |_| error_msg.set(None)
                     >
-                        <div class="px-1 py-1.5 border-b border-gray-100">
-                            <span class="text-xs font-medium text-gray-400 uppercase \
-                                         tracking-wider px-2">
-                                "Folders"
-                            </span>
-                        </div>
-                        <div class="overflow-y-auto max-h-[70vh]">
-                            <FolderTree />
-                        </div>
+                        <span class="material-symbols-outlined" style="font-size:18px;">
+                            "close"
+                        </span>
+                    </button>
+                </div>
+            </Show>
+
+            // ── Breadcrumb (left) + Toolbar (right) in one row ───────────────
+            <div class="flex-shrink-0 bg-white border-b border-gray-100 \
+                         px-4 flex items-center justify-between gap-4 min-h-[48px]">
+                <div class="flex-1 min-w-0">
+                    <Breadcrumb />
+                </div>
+                <Toolbar />
+            </div>
+
+            // ── Main content area: tree | divider | file grid ─────────────────
+            <div class="flex-1 min-h-0 flex gap-0 p-3">
+                // Folder tree panel
+                <div
+                    class="flex-shrink-0 bg-white border border-gray-200 rounded-lg \
+                           shadow-sm flex flex-col overflow-hidden"
+                    style=move || format!("width: {}px;", tree_w.get())
+                >
+                    <div class="px-3 py-1.5 border-b border-gray-100 flex-shrink-0">
+                        <span class="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                            "Folders"
+                        </span>
                     </div>
-
-                    // Drag divider
-                    <div
-                        class="w-2 flex-shrink-0 self-stretch cursor-col-resize \
-                               hover:bg-gray-200 transition-colors mx-1 rounded"
-                        on:mousedown=move |e: web_sys::MouseEvent| {
-                            e.prevent_default();
-                            drag_active.set(true);
-                            drag_x0.set(e.client_x() as f64);
-                            drag_w0.set(tree_w.get_untracked());
-                        }
-                    />
-
-                    // File grid (grows to fill remaining space)
-                    <div class="flex-1 min-w-0">
-                        <FileGrid />
+                    <div class="flex-1 overflow-y-auto">
+                        <FolderTree />
                     </div>
                 </div>
-            </main>
+
+                // Drag divider
+                <div
+                    class="w-2 flex-shrink-0 self-stretch cursor-col-resize \
+                           hover:bg-gray-200 transition-colors mx-1 rounded"
+                    on:mousedown=move |e: web_sys::MouseEvent| {
+                        e.prevent_default();
+                        drag_active.set(true);
+                        drag_x0.set(e.client_x() as f64);
+                        drag_w0.set(tree_w.get_untracked());
+                    }
+                />
+
+                // File grid (grows to fill remaining space, manages its own height)
+                <div class="flex-1 min-w-0 min-h-0 flex flex-col">
+                    <FileGrid />
+                </div>
+            </div>
+
             <Modals />
         </div>
     }

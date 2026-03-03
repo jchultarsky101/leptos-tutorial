@@ -1,5 +1,6 @@
 use common::CatalogPath;
 use leptos::prelude::*;
+use wasm_bindgen::JsCast as _;
 
 use crate::api;
 use crate::app::{ContentsResource, ItemKind, ModalState, SelectedItem};
@@ -49,34 +50,112 @@ pub fn Toolbar() -> impl IntoView {
     let modal = use_context::<RwSignal<Option<ModalState>>>().expect("modal context missing");
     let error_msg = use_context::<RwSignal<Option<String>>>().expect("error_msg context missing");
     let contents = use_context::<ContentsResource>().expect("contents context missing");
+    let catalog_version = use_context::<RwSignal<u32>>().expect("catalog_version context missing");
 
     let has_selection = move || !selected.get().is_empty();
     let single_selection = move || selected.get().len() == 1;
+    let single_file_selected = move || {
+        let sel = selected.get();
+        sel.len() == 1 && sel.first().is_some_and(|i| i.kind == ItemKind::File)
+    };
 
-    // Delete all selected items.
+    // ── Download ──────────────────────────────────────────────────────────
+    // Creates a temporary <a download> in the DOM and clicks it so the browser
+    // triggers a Save-As dialog without navigating.
+    let on_download = move || {
+        let items = selected.get_untracked();
+        let Some(item) = items.into_iter().find(|i| i.kind == ItemKind::File) else {
+            return;
+        };
+        let Some(win) = web_sys::window() else { return };
+        let Some(doc) = win.document() else { return };
+        let Ok(el) = doc.create_element("a") else {
+            return;
+        };
+        let Ok(anchor) = el.dyn_into::<web_sys::HtmlAnchorElement>() else {
+            return;
+        };
+
+        let href = format!(
+            "http://localhost:3000/files/{}",
+            item.path.as_str().trim_start_matches('/')
+        );
+        anchor.set_href(&href);
+        anchor.set_download(item.path.name());
+
+        // Must be in DOM for Firefox.
+        if let Some(body) = doc.body() {
+            let _ = body.append_child(&anchor);
+            anchor.click();
+            let _ = body.remove_child(&anchor);
+        } else {
+            anchor.click();
+        }
+    };
+
+    // ── Delete ────────────────────────────────────────────────────────────
+    // Files → immediate delete.
+    // Any folder in selection → count contained files recursively, then show
+    // the DeleteConfirm modal so the user sees what they are about to remove.
     let on_delete = move || {
         let items = selected.get_untracked();
         if items.is_empty() {
             return;
         }
-        wasm_bindgen_futures::spawn_local(async move {
-            let mut had_error = false;
-            for item in items {
-                let result = match item.kind {
-                    ItemKind::Folder => api::delete_folder(item.path).await,
-                    ItemKind::File => api::delete_file(item.path).await,
-                };
-                if let Err(e) = result {
-                    error_msg.set(Some(e.to_string()));
-                    had_error = true;
-                    break;
+
+        let has_folders = items.iter().any(|i| i.kind == ItemKind::Folder);
+
+        if !has_folders {
+            // Only files selected — delete immediately, no confirm needed.
+            wasm_bindgen_futures::spawn_local(async move {
+                let mut had_error = false;
+                for item in items {
+                    if let Err(e) = api::delete_file(item.path).await {
+                        error_msg.set(Some(e.to_string()));
+                        had_error = true;
+                        break;
+                    }
                 }
-            }
-            if !had_error {
-                selected.set(Vec::new());
-                contents.refetch();
-            }
-        });
+                if !had_error {
+                    selected.set(Vec::new());
+                    catalog_version.update(|v| *v += 1);
+                    contents.refetch();
+                }
+            });
+        } else {
+            // Count all files nested inside selected folders, then show modal.
+            wasm_bindgen_futures::spawn_local(async move {
+                let mut file_count: usize = 0;
+
+                // Seed the stack with all selected folder paths.
+                let mut stack: Vec<CatalogPath> = items
+                    .iter()
+                    .filter(|i| i.kind == ItemKind::Folder)
+                    .map(|i| i.path.clone())
+                    .collect();
+
+                // Also count files that are directly selected.
+                file_count += items.iter().filter(|i| i.kind == ItemKind::File).count();
+
+                // Iterative DFS — avoids recursion and the `Send` bound.
+                while let Some(path) = stack.pop() {
+                    match api::list_folder(path).await {
+                        Ok(data) => {
+                            file_count += data.files.len();
+                            for f in data.folders {
+                                stack.push(f.path);
+                            }
+                        }
+                        Err(e) => {
+                            error_msg.set(Some(e.to_string()));
+                            return;
+                        }
+                    }
+                }
+
+                modal.set(Some(ModalState::DeleteConfirm { items, file_count }));
+            });
+        }
     };
 
     let on_rename = move || {
@@ -99,7 +178,7 @@ pub fn Toolbar() -> impl IntoView {
     };
 
     view! {
-        <div class="flex items-center gap-1.5 mb-4 flex-wrap">
+        <div class="flex items-center gap-1.5 flex-wrap flex-shrink-0">
             // Always-visible buttons
             <ToolbarBtn
                 icon="create_new_folder"
@@ -114,12 +193,21 @@ pub fn Toolbar() -> impl IntoView {
                 }))
             />
 
-            // Separator — only visible when contextual buttons are shown
+            // Separator — only visible when contextual buttons follow
             <Show when=has_selection>
                 <div class="w-px h-5 bg-gray-200 mx-0.5" />
             </Show>
 
-            // Selection-conditional buttons
+            // Download — only when exactly one file is selected
+            <Show when=single_file_selected>
+                <ToolbarBtn
+                    icon="download"
+                    label="Download"
+                    on_click=on_download
+                />
+            </Show>
+
+            // Rename — only when exactly one item is selected
             <Show when=single_selection>
                 <ToolbarBtn
                     icon="drive_file_rename_outline"
@@ -127,6 +215,8 @@ pub fn Toolbar() -> impl IntoView {
                     on_click=on_rename
                 />
             </Show>
+
+            // Move + Delete — any selection
             <Show when=has_selection>
                 <ToolbarBtn
                     icon="drive_file_move"

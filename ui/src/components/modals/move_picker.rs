@@ -80,6 +80,7 @@ pub fn MovePickerModal(items: Vec<SelectedItem>) -> impl IntoView {
     let selected = use_context::<RwSignal<Vec<SelectedItem>>>().expect("selected context missing");
     let contents = use_context::<ContentsResource>().expect("contents context missing");
     let error_msg = use_context::<RwSignal<Option<String>>>().expect("error_msg context missing");
+    let catalog_version = use_context::<RwSignal<u32>>().expect("catalog_version context missing");
 
     // Flat list of visible picker nodes.
     let nodes: RwSignal<Vec<PickerNode>> = RwSignal::new(Vec::new());
@@ -159,6 +160,7 @@ pub fn MovePickerModal(items: Vec<SelectedItem>) -> impl IntoView {
             submitting.set(false);
             if !had_error {
                 selected.set(Vec::new());
+                catalog_version.update(|v| *v += 1);
                 modal.set(None);
                 contents.refetch();
             }

@@ -10,7 +10,7 @@ pub fn Breadcrumb() -> impl IntoView {
     let selected = use_context::<RwSignal<Vec<SelectedItem>>>().expect("selected context missing");
 
     view! {
-        <nav class="flex items-center flex-wrap gap-1 text-sm text-gray-500 mb-3 py-1.5">
+        <nav class="flex items-center flex-wrap gap-1 text-sm text-gray-500 min-w-0">
             {move || {
                 let path = current_path.get();
                 let path_str = path.as_str().to_owned();

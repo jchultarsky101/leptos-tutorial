@@ -13,6 +13,7 @@ pub fn RenameModal(path: CatalogPath, current_name: String, kind: ItemKind) -> i
     let selected = use_context::<RwSignal<Vec<SelectedItem>>>().expect("selected context missing");
     let contents = use_context::<ContentsResource>().expect("contents context missing");
     let error_msg = use_context::<RwSignal<Option<String>>>().expect("error_msg context missing");
+    let catalog_version = use_context::<RwSignal<u32>>().expect("catalog_version context missing");
 
     let new_name = RwSignal::new(current_name.clone());
     let submitting = RwSignal::new(false);
@@ -55,6 +56,7 @@ pub fn RenameModal(path: CatalogPath, current_name: String, kind: ItemKind) -> i
             match result {
                 Ok(_) => {
                     selected.set(Vec::new());
+                    catalog_version.update(|v| *v += 1);
                     modal.set(None);
                     contents.refetch();
                 }

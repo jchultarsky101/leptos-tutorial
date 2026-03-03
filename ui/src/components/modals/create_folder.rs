@@ -11,6 +11,7 @@ pub fn CreateFolderModal() -> impl IntoView {
         use_context::<RwSignal<CatalogPath>>().expect("current_path context missing");
     let contents = use_context::<ContentsResource>().expect("contents context missing");
     let error_msg = use_context::<RwSignal<Option<String>>>().expect("error_msg context missing");
+    let catalog_version = use_context::<RwSignal<u32>>().expect("catalog_version context missing");
 
     let name = RwSignal::new(String::new());
     let submitting = RwSignal::new(false);
@@ -27,6 +28,7 @@ pub fn CreateFolderModal() -> impl IntoView {
         wasm_bindgen_futures::spawn_local(async move {
             match api::create_folder(parent, &folder_name).await {
                 Ok(_) => {
+                    catalog_version.update(|v| *v += 1);
                     modal.set(None);
                     contents.refetch();
                 }

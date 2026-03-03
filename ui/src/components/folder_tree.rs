@@ -113,6 +113,7 @@ pub fn FolderTree() -> impl IntoView {
     let current_path =
         use_context::<RwSignal<CatalogPath>>().expect("current_path context missing");
     let selected = use_context::<RwSignal<Vec<SelectedItem>>>().expect("selected context missing");
+    let catalog_version = use_context::<RwSignal<u32>>().expect("catalog_version context missing");
 
     // Flat, ordered list of visible tree nodes.
     let nodes: RwSignal<Vec<TreeNode>> = RwSignal::new(vec![TreeNode {
@@ -123,13 +124,29 @@ pub fn FolderTree() -> impl IntoView {
         loading: false,
     }]);
 
-    // Expand root immediately on mount.
-    wasm_bindgen_futures::spawn_local(async move {
-        do_expand(CatalogPath::new("/").expect("root always valid"), nodes).await;
+    // On mount and after every catalog mutation: reset the tree to just the
+    // root node, then re-expand root + every ancestor of the current folder.
+    // This keeps the tree in sync after creates, renames, moves, and deletes.
+    Effect::new(move |_| {
+        let _v = catalog_version.get(); // subscribe so the effect re-runs on change
+        let target = current_path.get_untracked();
+        nodes.set(vec![TreeNode {
+            path: CatalogPath::new("/").expect("root always valid"),
+            name: "Root".into(),
+            depth: 0,
+            expanded: false,
+            loading: false,
+        }]);
+        wasm_bindgen_futures::spawn_local(async move {
+            do_expand(CatalogPath::new("/").expect("root always valid"), nodes).await;
+            for ancestor in ancestors_to_expand(&target) {
+                do_expand(ancestor, nodes).await;
+            }
+        });
     });
 
-    // Whenever current_path changes, expand every ancestor so the active folder
-    // is visible and highlighted in the tree.
+    // Whenever current_path changes (pure navigation), expand every ancestor
+    // so the active folder is visible and highlighted in the tree.
     Effect::new(move |_| {
         let target = current_path.get();
         wasm_bindgen_futures::spawn_local(async move {
