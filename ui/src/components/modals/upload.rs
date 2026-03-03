@@ -109,17 +109,21 @@ pub fn UploadModal(folder_path: CatalogPath) -> impl IntoView {
 
     view! {
         <div
-            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
             on:click=move |_| modal.set(None)
         >
             <div
                 class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4"
                 on:click=|ev| ev.stop_propagation()
             >
-                <h2 class="text-lg font-semibold text-gray-900 mb-1">"Upload Files"</h2>
-                <p class="text-sm text-gray-500 mb-4">
-                    "Uploading into: "
-                    <code class="font-mono text-xs bg-gray-100 px-1 rounded">
+                // Header
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="material-symbols-outlined text-gray-500">"upload"</span>
+                    <h2 class="text-sm font-semibold text-gray-900">"Upload Files"</h2>
+                </div>
+                <p class="text-xs text-gray-400 mb-4 ml-7">
+                    "Into: "
+                    <code class="font-mono bg-gray-100 px-1 rounded">
                         {folder_for_display.as_str().to_owned()}
                     </code>
                 </p>
@@ -129,15 +133,27 @@ pub fn UploadModal(folder_path: CatalogPath) -> impl IntoView {
                         type="file"
                         multiple
                         node_ref=input_ref
-                        class="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 mb-4"
+                        class="block w-full text-sm text-gray-500 mb-4 \
+                               file:mr-3 file:py-1.5 file:px-3 file:rounded \
+                               file:border file:border-gray-300 \
+                               file:text-xs file:font-medium file:text-gray-700 \
+                               file:bg-white hover:file:bg-gray-50 \
+                               file:transition-colors file:cursor-pointer"
                     />
 
                     <Show when=move || !status.get().is_empty()>
-                        <p class="text-sm text-amber-600 mb-3">{move || status.get()}</p>
+                        <div class="flex items-start gap-2 mb-3 p-2 bg-amber-50 \
+                                    border border-amber-200 rounded text-sm text-amber-700">
+                            <span class="material-symbols-outlined text-amber-500"
+                                style="font-size:16px; margin-top:1px;">
+                                "warning"
+                            </span>
+                            {move || status.get()}
+                        </div>
                     </Show>
 
                     <Show when=move || !conflicts.get().is_empty()>
-                        <ul class="text-sm text-gray-600 mb-3 list-disc list-inside">
+                        <ul class="text-xs text-gray-500 mb-3 list-disc list-inside space-y-0.5">
                             {move || conflicts.get().iter().map(|f| {
                                 view! { <li>{f.name()}</li> }
                             }).collect_view()}
@@ -147,7 +163,8 @@ pub fn UploadModal(folder_path: CatalogPath) -> impl IntoView {
                     <div class="flex gap-2 justify-end flex-wrap">
                         <button
                             type="button"
-                            class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+                            class="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-900 \
+                                   transition-colors"
                             on:click=move |_| modal.set(None)
                         >
                             "Cancel"
@@ -155,7 +172,8 @@ pub fn UploadModal(folder_path: CatalogPath) -> impl IntoView {
                         <Show when=move || !conflicts.get().is_empty()>
                             <button
                                 type="button"
-                                class="px-4 py-2 text-sm font-medium bg-amber-500 text-white rounded-md hover:bg-amber-600 disabled:opacity-50"
+                                class="px-3 py-1.5 text-sm font-medium bg-amber-500 text-white \
+                                       rounded hover:bg-amber-600 disabled:opacity-40 transition-colors"
                                 prop:disabled=move || uploading.get()
                                 on:click=on_override
                             >
@@ -164,7 +182,8 @@ pub fn UploadModal(folder_path: CatalogPath) -> impl IntoView {
                         </Show>
                         <button
                             type="submit"
-                            class="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                            class="px-3 py-1.5 text-sm font-medium bg-gray-900 text-white \
+                                   rounded hover:bg-gray-700 disabled:opacity-40 transition-colors"
                             prop:disabled=move || uploading.get()
                         >
                             {move || if uploading.get() { "Uploading…" } else { "Upload" }}

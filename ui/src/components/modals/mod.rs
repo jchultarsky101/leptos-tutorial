@@ -1,4 +1,5 @@
 pub mod create_folder;
+pub mod delete_confirm;
 pub mod move_picker;
 pub mod rename;
 pub mod upload;
@@ -29,5 +30,9 @@ pub fn Modals() -> impl IntoView {
         Some(ModalState::Upload { folder_path }) => {
             view! { <upload::UploadModal folder_path=folder_path /> }.into_any()
         }
+        Some(ModalState::DeleteConfirm { items, file_count }) => view! {
+            <delete_confirm::DeleteConfirmModal items=items file_count=file_count />
+        }
+        .into_any(),
     }
 }

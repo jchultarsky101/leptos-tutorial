@@ -80,6 +80,7 @@ pub fn MovePickerModal(items: Vec<SelectedItem>) -> impl IntoView {
     let selected = use_context::<RwSignal<Vec<SelectedItem>>>().expect("selected context missing");
     let contents = use_context::<ContentsResource>().expect("contents context missing");
     let error_msg = use_context::<RwSignal<Option<String>>>().expect("error_msg context missing");
+    let catalog_version = use_context::<RwSignal<u32>>().expect("catalog_version context missing");
 
     // Flat list of visible picker nodes.
     let nodes: RwSignal<Vec<PickerNode>> = RwSignal::new(Vec::new());
@@ -159,6 +160,7 @@ pub fn MovePickerModal(items: Vec<SelectedItem>) -> impl IntoView {
             submitting.set(false);
             if !had_error {
                 selected.set(Vec::new());
+                catalog_version.update(|v| *v += 1);
                 modal.set(None);
                 contents.refetch();
             }
@@ -167,16 +169,21 @@ pub fn MovePickerModal(items: Vec<SelectedItem>) -> impl IntoView {
 
     view! {
         <div
-            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
             on:click=move |_| modal.set(None)
         >
             <div
-                class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4 max-h-[80vh] flex flex-col"
+                class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4 \
+                       max-h-[80vh] flex flex-col"
                 on:click=|ev| ev.stop_propagation()
             >
-                <h2 class="text-lg font-semibold text-gray-900 mb-4">"Move to…"</h2>
+                // Header
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="material-symbols-outlined text-gray-500">"drive_file_move"</span>
+                    <h2 class="text-sm font-semibold text-gray-900">"Move to…"</h2>
+                </div>
 
-                <div class="flex-1 overflow-y-auto border border-gray-200 rounded-md mb-4">
+                <div class="flex-1 overflow-y-auto border border-gray-200 rounded mb-4">
                     {move || {
                         let items_snap = items.clone();
                         nodes.get().into_iter().enumerate().map(move |(idx, node)| {
@@ -187,13 +194,24 @@ pub fn MovePickerModal(items: Vec<SelectedItem>) -> impl IntoView {
                             let indent_px = node.indent * 20;
                             let items_for_expand = items_snap.clone();
 
+                            // Expand/collapse icon name
+                            let expand_icon = if node.loading {
+                                "progress_activity"
+                            } else if node.expanded {
+                                "expand_more"
+                            } else {
+                                "chevron_right"
+                            };
+
                             view! {
                                 <div
                                     class=move || {
                                         if is_selected() {
-                                            "flex items-center gap-1 px-2 py-1.5 cursor-pointer bg-blue-50 border-l-2 border-blue-500".to_owned()
+                                            "flex items-center gap-1.5 px-2 py-1.5 cursor-pointer \
+                                             bg-gray-100 border-l-2 border-gray-900".to_owned()
                                         } else {
-                                            "flex items-center gap-1 px-2 py-1.5 cursor-pointer hover:bg-gray-50".to_owned()
+                                            "flex items-center gap-1.5 px-2 py-1.5 cursor-pointer \
+                                             hover:bg-gray-50".to_owned()
                                         }
                                     }
                                     style=format!("padding-left: {}px", 8 + indent_px)
@@ -203,20 +221,22 @@ pub fn MovePickerModal(items: Vec<SelectedItem>) -> impl IntoView {
                                     }
                                 >
                                     <button
-                                        class="w-5 h-5 text-gray-400 hover:text-gray-700 flex-shrink-0"
+                                        class="w-4 h-4 text-gray-400 hover:text-gray-700 \
+                                               flex-shrink-0 flex items-center justify-center"
                                         on:click=move |ev| {
                                             ev.stop_propagation();
                                             toggle_expand(idx, nodes, items_for_expand.clone());
                                         }
                                     >
-                                        {if node.loading {
-                                            "⏳"
-                                        } else if node.expanded {
-                                            "▼"
-                                        } else {
-                                            "▶"
-                                        }}
+                                        <span class="material-symbols-outlined"
+                                            style="font-size:16px;">
+                                            {expand_icon}
+                                        </span>
                                     </button>
+                                    <span class="material-symbols-outlined text-gray-400"
+                                        style="font-size:16px;">
+                                        "folder"
+                                    </span>
                                     <span class="text-sm text-gray-800">{node.name.clone()}</span>
                                 </div>
                             }
@@ -226,13 +246,15 @@ pub fn MovePickerModal(items: Vec<SelectedItem>) -> impl IntoView {
 
                 <div class="flex gap-2 justify-end">
                     <button
-                        class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+                        class="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-900 \
+                               transition-colors"
                         on:click=move |_| modal.set(None)
                     >
                         "Cancel"
                     </button>
                     <button
-                        class="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                        class="px-3 py-1.5 text-sm font-medium bg-gray-900 text-white \
+                               rounded hover:bg-gray-700 disabled:opacity-40 transition-colors"
                         prop:disabled=move || submitting.get() || selected_dest.get().is_none()
                         on:click=on_move
                     >
