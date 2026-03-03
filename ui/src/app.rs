@@ -1,9 +1,10 @@
 use common::{CatalogPath, dto::FolderContentsDto};
 use leptos::prelude::*;
+use wasm_bindgen::prelude::*;
 
 use crate::{
     api,
-    components::{Breadcrumb, FileGrid, Modals, Toolbar},
+    components::{Breadcrumb, FileGrid, FolderTree, Modals, Toolbar},
     error::UiError,
 };
 
@@ -38,6 +39,9 @@ pub enum ModalState {
 /// A CSR-local resource (no `Send` requirement on the future).
 pub type ContentsResource = LocalResource<Result<FolderContentsDto, UiError>>;
 
+const MIN_TREE_W: f64 = 140.0;
+const DEFAULT_TREE_W: f64 = 220.0;
+
 #[component]
 pub fn App() -> impl IntoView {
     let current_path = RwSignal::new(CatalogPath::new("/").expect("root path is always valid"));
@@ -57,29 +61,100 @@ pub fn App() -> impl IntoView {
     provide_context(error_msg);
     provide_context(contents);
 
+    // ── Tree panel resize state ────────────────────────────────────────────────
+    let tree_w: RwSignal<f64> = RwSignal::new(DEFAULT_TREE_W);
+    let drag_active: RwSignal<bool> = RwSignal::new(false);
+    let drag_x0: RwSignal<f64> = RwSignal::new(0.0);
+    let drag_w0: RwSignal<f64> = RwSignal::new(0.0);
+
+    // Window-level listeners so dragging feels smooth even when the pointer
+    // moves faster than the divider element.
+    {
+        let on_move = Closure::<dyn Fn(web_sys::MouseEvent)>::new(move |e: web_sys::MouseEvent| {
+            if drag_active.get_untracked() {
+                let delta = e.client_x() as f64 - drag_x0.get_untracked();
+                tree_w.set((drag_w0.get_untracked() + delta).max(MIN_TREE_W));
+            }
+        });
+        let on_up = Closure::<dyn Fn(web_sys::MouseEvent)>::new(move |_: web_sys::MouseEvent| {
+            drag_active.set(false);
+        });
+        let win = web_sys::window().expect("no window");
+        let _ = win.add_event_listener_with_callback("mousemove", on_move.as_ref().unchecked_ref());
+        let _ = win.add_event_listener_with_callback("mouseup", on_up.as_ref().unchecked_ref());
+        on_move.forget();
+        on_up.forget();
+    }
+
     view! {
         <div class="min-h-screen bg-gray-50">
-            <header class="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-3">
-                <span class="text-2xl">"🗂"</span>
-                <h1 class="text-xl font-semibold text-gray-800">"File Catalog"</h1>
+            // Full-viewport overlay while dragging the tree divider.
+            <Show when=move || drag_active.get()>
+                <div class="fixed inset-0 z-50 cursor-col-resize" />
+            </Show>
+
+            <header class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-gray-700">"folder_open"</span>
+                <h1 class="text-sm font-semibold tracking-tight text-gray-900">"File Catalog"</h1>
             </header>
+
             <main class="px-6 py-4 max-w-7xl mx-auto">
                 <Show when=move || error_msg.get().is_some()>
-                    <div class="mb-4 p-3 bg-red-50 border border-red-200 rounded-md flex items-center justify-between">
-                        <span class="text-sm text-red-700">
-                            {move || error_msg.get().unwrap_or_default()}
-                        </span>
+                    <div class="mb-4 p-3 bg-red-50 border border-red-200 rounded flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined text-red-500" style="font-size:18px;">"error"</span>
+                            <span class="text-sm text-red-700">
+                                {move || error_msg.get().unwrap_or_default()}
+                            </span>
+                        </div>
                         <button
-                            class="text-red-400 hover:text-red-600 ml-4 font-bold"
+                            class="text-red-400 hover:text-red-600 focus:outline-none"
                             on:click=move |_| error_msg.set(None)
                         >
-                            "✕"
+                            <span class="material-symbols-outlined" style="font-size:18px;">"close"</span>
                         </button>
                     </div>
                 </Show>
+
                 <Breadcrumb />
                 <Toolbar />
-                <FileGrid />
+
+                // ── Horizontal split: tree panel | divider | file grid ─────────
+                <div class="flex items-start gap-0">
+                    // Folder tree panel
+                    <div
+                        class="flex-shrink-0 bg-white border border-gray-200 rounded-lg \
+                               shadow-sm overflow-hidden"
+                        style=move || format!("width: {}px;", tree_w.get())
+                    >
+                        <div class="px-1 py-1.5 border-b border-gray-100">
+                            <span class="text-xs font-medium text-gray-400 uppercase \
+                                         tracking-wider px-2">
+                                "Folders"
+                            </span>
+                        </div>
+                        <div class="overflow-y-auto max-h-[70vh]">
+                            <FolderTree />
+                        </div>
+                    </div>
+
+                    // Drag divider
+                    <div
+                        class="w-2 flex-shrink-0 self-stretch cursor-col-resize \
+                               hover:bg-gray-200 transition-colors mx-1 rounded"
+                        on:mousedown=move |e: web_sys::MouseEvent| {
+                            e.prevent_default();
+                            drag_active.set(true);
+                            drag_x0.set(e.client_x() as f64);
+                            drag_w0.set(tree_w.get_untracked());
+                        }
+                    />
+
+                    // File grid (grows to fill remaining space)
+                    <div class="flex-1 min-w-0">
+                        <FileGrid />
+                    </div>
+                </div>
             </main>
             <Modals />
         </div>

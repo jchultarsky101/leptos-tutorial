@@ -3,3 +3,21 @@
 /* Tell v4 where to scan for utility classes */
 @source "./src/**/*.rs";
 @source "./index.html";
+
+@layer base {
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+/* Material Symbols Outlined — weight 300, no fill, 20 px optical size */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20;
+  font-size: 20px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  flex-shrink: 0;
+}

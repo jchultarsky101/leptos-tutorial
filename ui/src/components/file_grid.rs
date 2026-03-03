@@ -36,22 +36,23 @@ impl SortDir {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/// Returns a Material Symbol ligature name for the given MIME type.
 fn file_icon(content_type: &str) -> &'static str {
     if content_type.starts_with("image/") {
-        "🖼"
+        "image"
     } else if content_type.starts_with("video/") {
-        "🎬"
+        "movie"
     } else if content_type.starts_with("audio/") {
-        "🎵"
+        "audio_file"
     } else if content_type.contains("pdf") {
-        "📄"
+        "picture_as_pdf"
     } else if content_type.contains("zip")
         || content_type.contains("tar")
         || content_type.contains("gz")
     {
-        "🗜"
+        "folder_zip"
     } else {
-        "📄"
+        "description"
     }
 }
 
@@ -172,8 +173,11 @@ pub fn FileGrid() -> impl IntoView {
                 match resolved {
                     None => view! {
                         <div class="p-10 text-center text-gray-400">
-                            <div class="text-4xl mb-2">"⏳"</div>
-                            "Loading..."
+                            <span class="material-symbols-outlined text-gray-300"
+                                style="font-size:40px; display:block; margin-bottom:8px;">
+                                "hourglass_empty"
+                            </span>
+                            "Loading…"
                         </div>
                     }
                     .into_any(),
@@ -182,7 +186,10 @@ pub fn FileGrid() -> impl IntoView {
                         let msg = e.to_string();
                         view! {
                             <div class="p-10 text-center text-red-600">
-                                <div class="text-4xl mb-2">"⚠"</div>
+                                <span class="material-symbols-outlined text-red-300"
+                                    style="font-size:40px; display:block; margin-bottom:8px;">
+                                    "error"
+                                </span>
                                 {msg}
                             </div>
                         }
@@ -193,7 +200,10 @@ pub fn FileGrid() -> impl IntoView {
                         if data.folders.is_empty() && data.files.is_empty() {
                             return view! {
                                 <div class="p-10 text-center text-gray-400">
-                                    <div class="text-4xl mb-2">"📭"</div>
+                                    <span class="material-symbols-outlined text-gray-300"
+                                        style="font-size:40px; display:block; margin-bottom:8px;">
+                                        "inbox"
+                                    </span>
                                     "This folder is empty"
                                 </div>
                             }
@@ -235,15 +245,15 @@ pub fn FileGrid() -> impl IntoView {
                         let size_label = label(SortCol::Size, "Size");
                         let modified_label = label(SortCol::Modified, "Modified");
 
-                        // Header cell base class; active column gets blue text.
+                        // Header cell base class; active column gets dark text.
                         let hdr_cls = |c: SortCol, extra: &'static str| -> String {
                             let color = if c == col {
-                                "text-blue-600 font-semibold"
+                                "text-gray-900 font-semibold"
                             } else {
-                                "text-gray-500 font-medium"
+                                "text-gray-400 font-medium"
                             };
                             format!(
-                                "relative px-3 py-3 text-xs uppercase tracking-wider \
+                                "relative px-3 py-2.5 text-xs uppercase tracking-wider \
                                  cursor-pointer select-none bg-gray-50 \
                                  border-r border-gray-200 {color} {extra}"
                             )
@@ -273,7 +283,7 @@ pub fn FileGrid() -> impl IntoView {
                                 <thead>
                                     <tr>
                                         // Checkbox column header.
-                                        <th class="px-3 py-3 bg-gray-50 border-r border-gray-200" />
+                                        <th class="px-3 py-2.5 bg-gray-50 border-r border-gray-200" />
 
                                         // Name ─────────────────────────────
                                         <th
@@ -281,10 +291,10 @@ pub fn FileGrid() -> impl IntoView {
                                             on:click=move |_| toggle_sort(SortCol::Name)
                                         >
                                             {name_label}
-                                            // Resize handle — visible 1 px divider, expands on hover.
+                                            // Resize handle
                                             <div
                                                 class="absolute inset-y-0 right-0 w-px \
-                                                       bg-gray-300 hover:w-1 hover:bg-blue-400 \
+                                                       bg-gray-200 hover:w-1 hover:bg-gray-400 \
                                                        cursor-col-resize transition-all z-10"
                                                 on:mousedown=move |e: web_sys::MouseEvent| {
                                                     e.stop_propagation();
@@ -304,7 +314,7 @@ pub fn FileGrid() -> impl IntoView {
                                             {size_label}
                                             <div
                                                 class="absolute inset-y-0 right-0 w-px \
-                                                       bg-gray-300 hover:w-1 hover:bg-blue-400 \
+                                                       bg-gray-200 hover:w-1 hover:bg-gray-400 \
                                                        cursor-col-resize transition-all z-10"
                                                 on:mousedown=move |e: web_sys::MouseEvent| {
                                                     e.stop_propagation();
@@ -317,7 +327,7 @@ pub fn FileGrid() -> impl IntoView {
                                         </th>
 
                                         // Modified ─────────────────────────
-                                        // Last column: no resize handle (fills remaining space).
+                                        // Last column: no resize handle.
                                         <th
                                             class=hdr_cls(SortCol::Modified, "text-right")
                                             on:click=move |_| toggle_sort(SortCol::Modified)
@@ -340,23 +350,26 @@ pub fn FileGrid() -> impl IntoView {
                                                 });
                                             view! {
                                                 <tr
-                                                    class="hover:bg-blue-50 cursor-pointer select-none"
+                                                    class="hover:bg-gray-50 cursor-pointer select-none"
                                                     on:click=move |_| {
                                                         selected.set(Vec::new());
                                                         current_path.set(parent.clone());
                                                     }
                                                 >
-                                                    <td class="px-3 py-3 border-r border-gray-100" />
-                                                    <td class="px-3 py-3 text-sm text-gray-500 italic \
+                                                    <td class="px-3 py-2.5 border-r border-gray-100" />
+                                                    <td class="px-3 py-2.5 text-sm text-gray-400 italic \
                                                                border-r border-gray-100 overflow-hidden \
                                                                text-ellipsis whitespace-nowrap">
                                                         <span class="flex items-center gap-2">
-                                                            <span class="text-xl">"📁"</span>
+                                                            <span class="material-symbols-outlined text-gray-300"
+                                                                style="font-size:18px;">
+                                                                "arrow_upward"
+                                                            </span>
                                                             ".. (parent)"
                                                         </span>
                                                     </td>
-                                                    <td class="px-3 py-3 border-r border-gray-100" />
-                                                    <td class="px-3 py-3" />
+                                                    <td class="px-3 py-2.5 border-r border-gray-100" />
+                                                    <td class="px-3 py-2.5" />
                                                 </tr>
                                             }
                                             .into_any()
@@ -379,7 +392,7 @@ pub fn FileGrid() -> impl IntoView {
                                             let item2 = item.clone();
                                             view! {
                                                 <tr class="hover:bg-gray-50 select-none">
-                                                    <td class="px-3 py-3 border-r border-gray-100">
+                                                    <td class="px-3 py-2.5 border-r border-gray-100">
                                                         <input
                                                             type="checkbox"
                                                             class="rounded border-gray-300"
@@ -392,7 +405,7 @@ pub fn FileGrid() -> impl IntoView {
                                                         />
                                                     </td>
                                                     <td
-                                                        class="px-3 py-3 cursor-pointer \
+                                                        class="px-3 py-2.5 cursor-pointer \
                                                                border-r border-gray-100 \
                                                                overflow-hidden text-ellipsis whitespace-nowrap"
                                                         on:click=move |_| {
@@ -402,15 +415,18 @@ pub fn FileGrid() -> impl IntoView {
                                                     >
                                                         <span class="flex items-center gap-2 \
                                                                      text-sm font-medium text-gray-800">
-                                                            <span class="text-xl">"📁"</span>
+                                                            <span class="material-symbols-outlined text-gray-400"
+                                                                style="font-size:18px;">
+                                                                "folder"
+                                                            </span>
                                                             {name}
                                                         </span>
                                                     </td>
-                                                    <td class="px-3 py-3 text-right text-sm \
-                                                               text-gray-400 border-r border-gray-100">
+                                                    <td class="px-3 py-2.5 text-right text-sm \
+                                                               text-gray-300 border-r border-gray-100">
                                                         "—"
                                                     </td>
-                                                    <td class="px-3 py-3 text-right text-sm text-gray-400">
+                                                    <td class="px-3 py-2.5 text-right text-sm text-gray-400 tabular-nums">
                                                         {modified}
                                                     </td>
                                                 </tr>
@@ -425,7 +441,7 @@ pub fn FileGrid() -> impl IntoView {
                                             let name = file.path.name().to_owned();
                                             let size = format_size(file.size_bytes);
                                             let modified = short_date(&file.modified_at);
-                                            let icon = file_icon(&file.content_type).to_owned();
+                                            let icon = file_icon(&file.content_type);
                                             let file_path = file.path.clone();
                                             let item = SelectedItem {
                                                 path: file.path.clone(),
@@ -434,7 +450,7 @@ pub fn FileGrid() -> impl IntoView {
                                             let item2 = item.clone();
                                             view! {
                                                 <tr class="hover:bg-gray-50 select-none">
-                                                    <td class="px-3 py-3 border-r border-gray-100">
+                                                    <td class="px-3 py-2.5 border-r border-gray-100">
                                                         <input
                                                             type="checkbox"
                                                             class="rounded border-gray-300"
@@ -446,7 +462,7 @@ pub fn FileGrid() -> impl IntoView {
                                                             }
                                                         />
                                                     </td>
-                                                    <td class="px-3 py-3 border-r border-gray-100 \
+                                                    <td class="px-3 py-2.5 border-r border-gray-100 \
                                                                overflow-hidden text-ellipsis whitespace-nowrap">
                                                         <a
                                                             href=format!(
@@ -457,17 +473,21 @@ pub fn FileGrid() -> impl IntoView {
                                                             )
                                                             target="_blank"
                                                             class="flex items-center gap-2 text-sm \
-                                                                   text-gray-800 hover:text-blue-600"
+                                                                   text-gray-800 hover:text-gray-900 \
+                                                                   hover:underline underline-offset-2"
                                                         >
-                                                            <span class="text-xl">{icon}</span>
+                                                            <span class="material-symbols-outlined text-gray-400"
+                                                                style="font-size:18px;">
+                                                                {icon}
+                                                            </span>
                                                             {name}
                                                         </a>
                                                     </td>
-                                                    <td class="px-3 py-3 text-right text-sm \
-                                                               text-gray-500 border-r border-gray-100">
+                                                    <td class="px-3 py-2.5 text-right text-sm \
+                                                               text-gray-500 border-r border-gray-100 tabular-nums">
                                                         {size}
                                                     </td>
-                                                    <td class="px-3 py-3 text-right text-sm text-gray-400">
+                                                    <td class="px-3 py-2.5 text-right text-sm text-gray-400 tabular-nums">
                                                         {modified}
                                                     </td>
                                                 </tr>
