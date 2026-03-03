@@ -4,7 +4,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::{
     api,
-    components::{Breadcrumb, FileGrid, FolderTree, Modals, Toolbar},
+    components::{Breadcrumb, FileGrid, FilePreview, FolderTree, Modals, Toolbar},
     error::UiError,
 };
 
@@ -41,11 +41,20 @@ pub enum ModalState {
     },
 }
 
+/// Identifies the file currently open in the preview pane.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PreviewTarget {
+    pub path: CatalogPath,
+    pub content_type: String,
+}
+
 /// A CSR-local resource (no `Send` requirement on the future).
 pub type ContentsResource = LocalResource<Result<FolderContentsDto, UiError>>;
 
 const MIN_TREE_W: f64 = 140.0;
 const DEFAULT_TREE_W: f64 = 220.0;
+const MIN_PREVIEW_W: f64 = 280.0;
+const DEFAULT_PREVIEW_W: f64 = 400.0;
 
 #[component]
 pub fn App() -> impl IntoView {
@@ -63,12 +72,22 @@ pub fn App() -> impl IntoView {
     // Incremented after every catalog mutation so FolderTree can refresh.
     let catalog_version: RwSignal<u32> = RwSignal::new(0_u32);
 
+    // File currently open in the preview pane (None = pane closed).
+    let preview_file: RwSignal<Option<PreviewTarget>> = RwSignal::new(None);
+
     provide_context(current_path);
     provide_context(selected);
     provide_context(modal);
     provide_context(error_msg);
     provide_context(contents);
     provide_context(catalog_version);
+    provide_context(preview_file);
+
+    // Clear the preview whenever the user navigates to a different folder.
+    Effect::new(move |_| {
+        let _ = current_path.get();
+        preview_file.set(None);
+    });
 
     // ── Tree panel resize state ────────────────────────────────────────────────
     let tree_w: RwSignal<f64> = RwSignal::new(DEFAULT_TREE_W);
@@ -76,17 +95,31 @@ pub fn App() -> impl IntoView {
     let drag_x0: RwSignal<f64> = RwSignal::new(0.0);
     let drag_w0: RwSignal<f64> = RwSignal::new(0.0);
 
-    // Window-level listeners so dragging feels smooth even when the pointer
-    // moves faster than the divider element.
+    // ── Preview panel resize state ────────────────────────────────────────────
+    let preview_w: RwSignal<f64> = RwSignal::new(DEFAULT_PREVIEW_W);
+    let preview_drag_active: RwSignal<bool> = RwSignal::new(false);
+    let preview_drag_x0: RwSignal<f64> = RwSignal::new(0.0);
+    let preview_drag_w0: RwSignal<f64> = RwSignal::new(0.0);
+
+    // Window-level listeners — both tree and preview drag share the same
+    // mousemove/mouseup events; each closure checks its own active flag.
     {
         let on_move = Closure::<dyn Fn(web_sys::MouseEvent)>::new(move |e: web_sys::MouseEvent| {
+            let x = e.client_x() as f64;
             if drag_active.get_untracked() {
-                let delta = e.client_x() as f64 - drag_x0.get_untracked();
+                let delta = x - drag_x0.get_untracked();
                 tree_w.set((drag_w0.get_untracked() + delta).max(MIN_TREE_W));
+            }
+            if preview_drag_active.get_untracked() {
+                // Divider is to the LEFT of the preview panel; moving left
+                // (negative delta) widens the panel.
+                let delta = x - preview_drag_x0.get_untracked();
+                preview_w.set((preview_drag_w0.get_untracked() - delta).max(MIN_PREVIEW_W));
             }
         });
         let on_up = Closure::<dyn Fn(web_sys::MouseEvent)>::new(move |_: web_sys::MouseEvent| {
             drag_active.set(false);
+            preview_drag_active.set(false);
         });
         let win = web_sys::window().expect("no window");
         let _ = win.add_event_listener_with_callback("mousemove", on_move.as_ref().unchecked_ref());
@@ -98,8 +131,8 @@ pub fn App() -> impl IntoView {
     view! {
         // Full-viewport flex column — no scroll on the outer shell.
         <div class="h-screen flex flex-col bg-gray-50 overflow-hidden">
-            // Drag overlay while resizing the tree panel.
-            <Show when=move || drag_active.get()>
+            // Drag overlay — shown whenever any panel resize is in progress.
+            <Show when=move || drag_active.get() || preview_drag_active.get()>
                 <div class="fixed inset-0 z-50 cursor-col-resize" />
             </Show>
 
@@ -177,6 +210,28 @@ pub fn App() -> impl IntoView {
                 <div class="flex-1 min-w-0 min-h-0 flex flex-col">
                     <FileGrid />
                 </div>
+
+                // ── Preview panel (shown when a file is selected for preview) ─
+                <Show when=move || preview_file.get().is_some()>
+                    // Drag divider — left edge of the preview panel.
+                    <div
+                        class="w-2 flex-shrink-0 self-stretch cursor-col-resize \
+                               hover:bg-gray-200 transition-colors mx-1 rounded"
+                        on:mousedown=move |e: web_sys::MouseEvent| {
+                            e.prevent_default();
+                            preview_drag_active.set(true);
+                            preview_drag_x0.set(e.client_x() as f64);
+                            preview_drag_w0.set(preview_w.get_untracked());
+                        }
+                    />
+                    <div
+                        class="flex-shrink-0 bg-white border border-gray-200 \
+                               rounded-lg shadow-sm flex flex-col overflow-hidden"
+                        style=move || format!("width: {}px;", preview_w.get())
+                    >
+                        <FilePreview />
+                    </div>
+                </Show>
             </div>
 
             <Modals />

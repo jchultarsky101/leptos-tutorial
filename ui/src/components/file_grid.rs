@@ -2,7 +2,7 @@ use common::CatalogPath;
 use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 
-use crate::app::{ContentsResource, ItemKind, SelectedItem};
+use crate::app::{ContentsResource, ItemKind, PreviewTarget, SelectedItem};
 
 // ── Sort state ────────────────────────────────────────────────────────────────
 
@@ -84,6 +84,8 @@ pub fn FileGrid() -> impl IntoView {
         use_context::<RwSignal<CatalogPath>>().expect("current_path context missing");
     let selected = use_context::<RwSignal<Vec<SelectedItem>>>().expect("selected context missing");
     let contents = use_context::<ContentsResource>().expect("contents context missing");
+    let preview_file =
+        use_context::<RwSignal<Option<PreviewTarget>>>().expect("preview_file context missing");
 
     // ── Sort ──────────────────────────────────────────────────────────────────
 
@@ -450,9 +452,7 @@ pub fn FileGrid() -> impl IntoView {
                                             })
                                             .collect_view()}
 
-                                        // File rows.
-                                        // Click is reserved for future preview; download is
-                                        // triggered from the dedicated toolbar button.
+                                        // File rows — clicking the name opens the preview pane.
                                         {files
                                             .into_iter()
                                             .map(|file| {
@@ -460,6 +460,8 @@ pub fn FileGrid() -> impl IntoView {
                                                 let size = format_size(file.size_bytes);
                                                 let modified = short_date(&file.modified_at);
                                                 let icon = file_icon(&file.content_type);
+                                                let preview_path = file.path.clone();
+                                                let preview_ct = file.content_type.clone();
                                                 let item = SelectedItem {
                                                     path: file.path.clone(),
                                                     kind: ItemKind::File,
@@ -482,10 +484,22 @@ pub fn FileGrid() -> impl IntoView {
                                                                 }
                                                             />
                                                         </td>
-                                                        <td class="px-3 py-2.5 \
+                                                        <td
+                                                            class="px-3 py-2.5 cursor-pointer \
                                                                    border-r border-gray-100 \
                                                                    overflow-hidden \
-                                                                   text-ellipsis whitespace-nowrap">
+                                                                   text-ellipsis whitespace-nowrap \
+                                                                   hover:bg-gray-100 transition-colors"
+                                                            on:click=move |_| {
+                                                                preview_file.set(Some(
+                                                                    PreviewTarget {
+                                                                        path: preview_path.clone(),
+                                                                        content_type: preview_ct
+                                                                            .clone(),
+                                                                    },
+                                                                ));
+                                                            }
+                                                        >
                                                             <span
                                                                 class="flex items-center gap-2 \
                                                                        text-sm text-gray-800"

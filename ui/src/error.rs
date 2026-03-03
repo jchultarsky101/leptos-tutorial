@@ -10,6 +10,8 @@ pub enum UiError {
     Api { status: u16, message: String },
     #[error("failed to parse response: {0}")]
     Parse(String),
+    #[error("file too large to preview ({0} bytes; limit is 1 MiB)")]
+    FileTooLarge(u64),
 }
 
 impl UiError {

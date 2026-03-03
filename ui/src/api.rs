@@ -162,6 +162,35 @@ pub async fn upload_file(
     }
 }
 
+/// Fetch the raw text content of a file for preview purposes.
+///
+/// Returns `Err(UiError::FileTooLarge)` without reading the body when the
+/// server reports a `Content-Length` larger than 1 MiB.
+pub async fn fetch_file_content(path: &CatalogPath) -> Result<String, UiError> {
+    const MAX_BYTES: u64 = 1_048_576; // 1 MiB
+
+    let url = format!("{API_BASE}/files/{}", path_segment(path));
+    let resp = Request::get(&url)
+        .send()
+        .await
+        .map_err(|e| UiError::Network(e.to_string()))?;
+
+    if !resp.ok() {
+        return Err(api_error(resp).await);
+    }
+
+    // Check Content-Length before touching the body — avoids pulling a huge
+    // file over the wire before we can show the "too large" message.
+    if let Some(cl) = resp.headers().get("content-length")
+        && let Ok(n) = cl.parse::<u64>()
+        && n > MAX_BYTES
+    {
+        return Err(UiError::FileTooLarge(n));
+    }
+
+    resp.text().await.map_err(|e| UiError::Parse(e.to_string()))
+}
+
 /// Delete a file.
 pub async fn delete_file(path: CatalogPath) -> Result<(), UiError> {
     let url = format!("{API_BASE}/files/{}", path_segment(&path));
