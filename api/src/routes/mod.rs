@@ -7,6 +7,7 @@ use crate::state::AppState;
 
 pub mod files;
 pub mod folders;
+pub mod search;
 
 #[derive(OpenApi)]
 #[openapi(
@@ -22,6 +23,7 @@ pub mod folders;
         files::reupload_file,
         files::patch_file,
         files::delete_file,
+        search::search,
     ),
     components(schemas(
         common::dto::FolderDto,
@@ -30,12 +32,15 @@ pub mod folders;
         common::dto::CreateFolderRequest,
         common::dto::PatchFolderRequest,
         common::dto::PatchFileRequest,
+        common::dto::SearchResultDto,
+        common::dto::SearchResultsDto,
         common::dto::ErrorResponse,
         common::path::CatalogPath,
     )),
     tags(
         (name = "folders", description = "Virtual folder operations"),
         (name = "files",   description = "File upload, download, and management"),
+        (name = "search",  description = "Search files and folders"),
     ),
     info(
         title = "File Catalog API",
@@ -78,6 +83,8 @@ pub fn build_router(state: AppState) -> Router {
                 .patch(files::patch_file)
                 .delete(files::delete_file),
         )
+        // ── Search ────────────────────────────────────────────────────────
+        .route("/search", get(search::search))
         .with_state(state);
 
     // Swagger UI only implements Into<Router<()>>, so merge after with_state.

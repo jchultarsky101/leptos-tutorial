@@ -1,10 +1,15 @@
-use common::{CatalogPath, dto::FolderContentsDto};
+use common::{
+    CatalogPath,
+    dto::{FolderContentsDto, SearchResultsDto},
+};
 use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 
 use crate::{
     api,
-    components::{Breadcrumb, FileGrid, FilePreview, FolderTree, Modals, Toolbar},
+    components::{
+        Breadcrumb, FileGrid, FilePreview, FolderTree, Modals, SearchBar, SearchResults, Toolbar,
+    },
     error::UiError,
 };
 
@@ -75,6 +80,11 @@ pub fn App() -> impl IntoView {
     // File currently open in the preview pane (None = pane closed).
     let preview_file: RwSignal<Option<PreviewTarget>> = RwSignal::new(None);
 
+    // ── Search state ──────────────────────────────────────────────────────────
+    let search_query: RwSignal<Option<String>> = RwSignal::new(None);
+    let search_fuzzy: RwSignal<bool> = RwSignal::new(false);
+    let search_results: RwSignal<Option<SearchResultsDto>> = RwSignal::new(None);
+
     provide_context(current_path);
     provide_context(selected);
     provide_context(modal);
@@ -82,11 +92,34 @@ pub fn App() -> impl IntoView {
     provide_context(contents);
     provide_context(catalog_version);
     provide_context(preview_file);
+    provide_context(search_query);
+    provide_context(search_fuzzy);
+    provide_context(search_results);
 
     // Clear the preview whenever the user navigates to a different folder.
     Effect::new(move |_| {
         let _ = current_path.get();
         preview_file.set(None);
+    });
+
+    // ── Search resource ────────────────────────────────────────────────────────
+    let _search_resource: LocalResource<()> = LocalResource::new(move || {
+        let query = search_query.get();
+        let fuzzy = search_fuzzy.get();
+        async move {
+            match query {
+                Some(q) if !q.trim().is_empty() => match api::search(q, fuzzy).await {
+                    Ok(dto) => search_results.set(Some(dto)),
+                    Err(e) => {
+                        tracing::warn!("search error: {e}");
+                        search_results.set(None);
+                    }
+                },
+                _ => {
+                    search_results.set(None);
+                }
+            }
+        }
     });
 
     // ── Tree panel resize state ────────────────────────────────────────────────
@@ -128,6 +161,9 @@ pub fn App() -> impl IntoView {
         on_up.forget();
     }
 
+    // Whether search is active (query is set and non-empty).
+    let search_active = move || search_query.get().is_some();
+
     view! {
         // Full-viewport flex column — no scroll on the outer shell.
         <div class="h-screen flex flex-col bg-gray-50 overflow-hidden">
@@ -144,6 +180,9 @@ pub fn App() -> impl IntoView {
                     "File Catalog"
                 </h1>
             </header>
+
+            // ── Search bar ────────────────────────────────────────────────────
+            <SearchBar />
 
             // ── Error banner (conditionally shown) ───────────────────────────
             <Show when=move || error_msg.get().is_some()>
@@ -168,71 +207,83 @@ pub fn App() -> impl IntoView {
             </Show>
 
             // ── Breadcrumb (left) + Toolbar (right) in one row ───────────────
-            <div class="flex-shrink-0 bg-white border-b border-gray-100 \
-                         px-4 flex items-center justify-between gap-4 min-h-[48px]">
-                <div class="flex-1 min-w-0">
-                    <Breadcrumb />
-                </div>
-                <Toolbar />
-            </div>
-
-            // ── Main content area: tree | divider | file grid ─────────────────
-            <div class="flex-1 min-h-0 flex gap-0 p-3">
-                // Folder tree panel
-                <div
-                    class="flex-shrink-0 bg-white border border-gray-200 rounded-lg \
-                           shadow-sm flex flex-col overflow-hidden"
-                    style=move || format!("width: {}px;", tree_w.get())
-                >
-                    <div class="px-3 py-1.5 border-b border-gray-100 flex-shrink-0">
-                        <span class="text-xs font-medium text-gray-400 uppercase tracking-wider">
-                            "Folders"
-                        </span>
+            <Show when=move || !search_active()>
+                <div class="flex-shrink-0 bg-white border-b border-gray-100 \
+                             px-4 flex items-center justify-between gap-4 min-h-[48px]">
+                    <div class="flex-1 min-w-0">
+                        <Breadcrumb />
                     </div>
-                    <div class="flex-1 overflow-y-auto">
-                        <FolderTree />
-                    </div>
+                    <Toolbar />
                 </div>
+            </Show>
 
-                // Drag divider
-                <div
-                    class="w-2 flex-shrink-0 self-stretch cursor-col-resize \
-                           hover:bg-gray-200 transition-colors mx-1 rounded"
-                    on:mousedown=move |e: web_sys::MouseEvent| {
-                        e.prevent_default();
-                        drag_active.set(true);
-                        drag_x0.set(e.client_x() as f64);
-                        drag_w0.set(tree_w.get_untracked());
-                    }
-                />
+            // ── Main content area ─────────────────────────────────────────────
+            <Show
+                when=search_active
+                fallback=move || view! {
+                    <div class="flex-1 min-h-0 flex gap-0 p-3">
+                        // Folder tree panel
+                        <div
+                            class="flex-shrink-0 bg-white border border-gray-200 rounded-lg \
+                                   shadow-sm flex flex-col overflow-hidden"
+                            style=move || format!("width: {}px;", tree_w.get())
+                        >
+                            <div class="px-3 py-1.5 border-b border-gray-100 flex-shrink-0">
+                                <span class="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                    "Folders"
+                                </span>
+                            </div>
+                            <div class="flex-1 overflow-y-auto">
+                                <FolderTree />
+                            </div>
+                        </div>
 
-                // File grid (grows to fill remaining space, manages its own height)
-                <div class="flex-1 min-w-0 min-h-0 flex flex-col">
-                    <FileGrid />
-                </div>
+                        // Drag divider
+                        <div
+                            class="w-2 flex-shrink-0 self-stretch cursor-col-resize \
+                                   hover:bg-gray-200 transition-colors mx-1 rounded"
+                            on:mousedown=move |e: web_sys::MouseEvent| {
+                                e.prevent_default();
+                                drag_active.set(true);
+                                drag_x0.set(e.client_x() as f64);
+                                drag_w0.set(tree_w.get_untracked());
+                            }
+                        />
 
-                // ── Preview panel (shown when a file is selected for preview) ─
-                <Show when=move || preview_file.get().is_some()>
-                    // Drag divider — left edge of the preview panel.
-                    <div
-                        class="w-2 flex-shrink-0 self-stretch cursor-col-resize \
-                               hover:bg-gray-200 transition-colors mx-1 rounded"
-                        on:mousedown=move |e: web_sys::MouseEvent| {
-                            e.prevent_default();
-                            preview_drag_active.set(true);
-                            preview_drag_x0.set(e.client_x() as f64);
-                            preview_drag_w0.set(preview_w.get_untracked());
-                        }
-                    />
-                    <div
-                        class="flex-shrink-0 bg-white border border-gray-200 \
-                               rounded-lg shadow-sm flex flex-col overflow-hidden"
-                        style=move || format!("width: {}px;", preview_w.get())
-                    >
-                        <FilePreview />
+                        // File grid (grows to fill remaining space)
+                        <div class="flex-1 min-w-0 min-h-0 flex flex-col">
+                            <FileGrid />
+                        </div>
+
+                        // ── Preview panel ─────────────────────────────────────
+                        <Show when=move || preview_file.get().is_some()>
+                            // Drag divider — left edge of the preview panel.
+                            <div
+                                class="w-2 flex-shrink-0 self-stretch cursor-col-resize \
+                                       hover:bg-gray-200 transition-colors mx-1 rounded"
+                                on:mousedown=move |e: web_sys::MouseEvent| {
+                                    e.prevent_default();
+                                    preview_drag_active.set(true);
+                                    preview_drag_x0.set(e.client_x() as f64);
+                                    preview_drag_w0.set(preview_w.get_untracked());
+                                }
+                            />
+                            <div
+                                class="flex-shrink-0 bg-white border border-gray-200 \
+                                       rounded-lg shadow-sm flex flex-col overflow-hidden"
+                                style=move || format!("width: {}px;", preview_w.get())
+                            >
+                                <FilePreview />
+                            </div>
+                        </Show>
                     </div>
-                </Show>
-            </div>
+                }
+            >
+                // ── Search results view ───────────────────────────────────────
+                <div class="flex-1 min-h-0 p-3">
+                    <SearchResults />
+                </div>
+            </Show>
 
             <Modals />
         </div>

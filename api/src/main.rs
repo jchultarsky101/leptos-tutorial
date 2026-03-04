@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::path::Path;
 use std::sync::Arc;
 
 use storage::{filesystem::LocalFileStore, memory::InMemoryMetadataStore};
@@ -23,8 +24,20 @@ async fn main() {
         std::process::exit(1);
     });
 
+    let metadata_store = InMemoryMetadataStore::new();
+
+    // Scan the storage directory to re-seed metadata from files on disk.
+    match metadata_store.scan_directory(Path::new(&storage_dir)).await {
+        Ok((dirs, files)) => {
+            tracing::info!("scanned {storage_dir:?}: {dirs} folders, {files} files");
+        }
+        Err(e) => {
+            tracing::warn!("failed to scan {storage_dir:?}: {e}");
+        }
+    }
+
     let state = AppState {
-        metadata: Arc::new(InMemoryMetadataStore::new()),
+        metadata: Arc::new(metadata_store),
         files: Arc::new(file_store),
     };
 

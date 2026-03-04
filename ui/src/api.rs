@@ -1,6 +1,9 @@
 use common::{
     CatalogPath,
-    dto::{FileDto, FolderContentsDto, FolderDto, PatchFileRequest, PatchFolderRequest},
+    dto::{
+        FileDto, FolderContentsDto, FolderDto, PatchFileRequest, PatchFolderRequest,
+        SearchResultsDto,
+    },
 };
 use gloo_net::http::Request;
 
@@ -200,6 +203,25 @@ pub async fn delete_file(path: CatalogPath) -> Result<(), UiError> {
         .map_err(|e| UiError::Network(e.to_string()))?;
     if resp.ok() {
         Ok(())
+    } else {
+        Err(api_error(resp).await)
+    }
+}
+
+// ── Search ───────────────────────────────────────────────────────────────────
+
+/// Search files and folders by name and/or content.
+pub async fn search(query: String, fuzzy: bool) -> Result<SearchResultsDto, UiError> {
+    let encoded = js_sys::encode_uri_component(&query);
+    let url = format!("{API_BASE}/search?q={encoded}&fuzzy={fuzzy}");
+    let resp = Request::get(&url)
+        .send()
+        .await
+        .map_err(|e| UiError::Network(e.to_string()))?;
+    if resp.ok() {
+        resp.json::<SearchResultsDto>()
+            .await
+            .map_err(|e| UiError::Parse(e.to_string()))
     } else {
         Err(api_error(resp).await)
     }
