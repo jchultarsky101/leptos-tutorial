@@ -8,7 +8,7 @@ use common::{
 };
 use tokio::sync::RwLock;
 
-use super::{BoxFuture, MetadataStore, file_to_dto, folder_to_dto};
+use super::{AllEntries, BoxFuture, MetadataStore, file_to_dto, folder_to_dto};
 
 pub struct InMemoryMetadataStore {
     folders: RwLock<HashMap<CatalogPath, FolderEntry>>,
@@ -282,6 +282,17 @@ impl MetadataStore for InMemoryMetadataStore {
             entry.modified_at = Utc::now().to_rfc3339();
             guard.insert(new_path, entry.clone());
             Ok(entry)
+        })
+    }
+
+    fn search_entries<'a>(&'a self) -> BoxFuture<'a, Result<AllEntries, CatalogError>> {
+        Box::pin(async move {
+            let folders = self.folders.read().await;
+            let files = self.files.read().await;
+            Ok((
+                folders.values().cloned().collect(),
+                files.values().cloned().collect(),
+            ))
         })
     }
 }

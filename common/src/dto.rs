@@ -98,6 +98,35 @@ pub struct PatchFileRequest {
     pub new_folder_path: Option<CatalogPath>,
 }
 
+// ── Search ────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct SearchResultDto {
+    pub path: CatalogPath,
+    /// `"file"` or `"folder"`.
+    pub kind: String,
+    /// Display name (last path segment).
+    pub name: String,
+    /// For files: size in bytes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size_bytes: Option<u64>,
+    /// For files: MIME type.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_type: Option<String>,
+    /// `"name"`, `"content"`, or `"both"`.
+    pub match_source: String,
+    /// Context snippet for content matches.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snippet: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct SearchResultsDto {
+    pub query: String,
+    pub fuzzy: bool,
+    pub results: Vec<SearchResultDto>,
+}
+
 // ── Generic error response ────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]

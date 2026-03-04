@@ -15,6 +15,9 @@ pub mod memory;
 /// Convenience alias for a heap-allocated, pinned, `Send`-capable async future.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
+/// All folder and file entries, returned by [`MetadataStore::search_entries`].
+pub type AllEntries = (Vec<FolderEntry>, Vec<FileEntry>);
+
 /// Async metadata operations over folders and file records.
 ///
 /// Implementations must be `Send + Sync + 'static` so they can be stored in
@@ -75,6 +78,11 @@ pub trait MetadataStore: Send + Sync + 'static {
         old_path: &'a CatalogPath,
         new_path: CatalogPath,
     ) -> BoxFuture<'a, Result<FileEntry, CatalogError>>;
+
+    // ── Search ────────────────────────────────────────────────────────────
+
+    /// Return all folder and file entries for search filtering.
+    fn search_entries<'a>(&'a self) -> BoxFuture<'a, Result<AllEntries, CatalogError>>;
 }
 
 /// Async raw byte storage, separate from metadata.
