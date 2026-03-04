@@ -137,10 +137,10 @@ pub fn App() -> impl IntoView {
             </Show>
 
             // ── App header ────────────────────────────────────────────────────
-            <header class="flex-shrink-0 bg-white border-b border-gray-200 \
-                           px-6 py-3 flex items-center gap-2">
-                <span class="material-symbols-outlined text-gray-700">"folder_open"</span>
-                <h1 class="text-sm font-semibold tracking-tight text-gray-900">
+            <header class="flex-shrink-0 bg-gray-900 \
+                           px-6 py-3 flex items-center gap-3">
+                <img src="/assets/logo.svg" alt="" class="h-6 w-6" />
+                <h1 class="text-base font-semibold tracking-tight text-white">
                     "File Catalog"
                 </h1>
             </header>

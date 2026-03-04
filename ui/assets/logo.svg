@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Back folder tab -->
+  <path d="M4 8h8l2-3h14a2 2 0 0 1 2 2v18a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z" fill="#3B82F6"/>
+  <!-- Front folder body -->
+  <path d="M2 12a2 2 0 0 1 2-2h24a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V12z" fill="#60A5FA"/>
+  <!-- Document icon inside -->
+  <rect x="11" y="14" width="10" height="12" rx="1" fill="white" opacity="0.9"/>
+  <line x1="13.5" y1="17.5" x2="18.5" y2="17.5" stroke="#93C5FD" stroke-width="1.2" stroke-linecap="round"/>
+  <line x1="13.5" y1="20.5" x2="18.5" y2="20.5" stroke="#93C5FD" stroke-width="1.2" stroke-linecap="round"/>
+  <line x1="13.5" y1="23.5" x2="16.5" y2="23.5" stroke="#93C5FD" stroke-width="1.2" stroke-linecap="round"/>
+</svg>
