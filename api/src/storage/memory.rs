@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::Path;
 
 use chrono::Utc;
 use common::{
@@ -31,6 +32,98 @@ impl InMemoryMetadataStore {
             files: RwLock::new(HashMap::new()),
         }
     }
+
+    /// Walk a filesystem directory and populate the metadata store from what
+    /// exists on disk. This re-seeds the in-memory state after a restart so
+    /// that files persisted by [`super::filesystem::LocalFileStore`] are
+    /// immediately visible in the catalog.
+    pub async fn scan_directory(&self, base_dir: &Path) -> Result<(usize, usize), CatalogError> {
+        use tokio::fs;
+
+        let mut dir_count: usize = 0;
+        let mut file_count: usize = 0;
+        let mut stack = vec![base_dir.to_path_buf()];
+
+        while let Some(dir) = stack.pop() {
+            let mut entries = fs::read_dir(&dir).await?;
+            while let Ok(Some(entry)) = entries.next_entry().await {
+                let path = entry.path();
+                let relative = path
+                    .strip_prefix(base_dir)
+                    .map_err(|e| CatalogError::Storage(e.to_string()))?;
+                let catalog_str = format!("/{}", relative.to_string_lossy().replace('\\', "/"));
+                let catalog_path = match CatalogPath::new(&catalog_str) {
+                    Ok(p) => p,
+                    Err(_) => continue, // skip unparseable paths
+                };
+
+                let metadata = fs::metadata(&path).await?;
+                let now = Utc::now().to_rfc3339();
+
+                if metadata.is_dir() {
+                    let mut folders = self.folders.write().await;
+                    if !folders.contains_key(&catalog_path) {
+                        folders.insert(
+                            catalog_path.clone(),
+                            FolderEntry {
+                                path: catalog_path,
+                                created_at: now.clone(),
+                                modified_at: now,
+                            },
+                        );
+                        dir_count += 1;
+                    }
+                    drop(folders);
+                    stack.push(path);
+                } else if metadata.is_file() {
+                    let size = metadata.len();
+                    let content_type = mime_from_extension(&catalog_str);
+                    let mut files = self.files.write().await;
+                    if !files.contains_key(&catalog_path) {
+                        files.insert(
+                            catalog_path.clone(),
+                            FileEntry {
+                                path: catalog_path,
+                                size_bytes: size,
+                                content_type,
+                                created_at: now.clone(),
+                                modified_at: now,
+                            },
+                        );
+                        file_count += 1;
+                    }
+                    drop(files);
+                }
+            }
+        }
+        Ok((dir_count, file_count))
+    }
+}
+
+/// Guess a MIME type from a file extension.
+fn mime_from_extension(path: &str) -> String {
+    let ext = path.rsplit('.').next().unwrap_or("").to_lowercase();
+    match ext.as_str() {
+        "txt" => "text/plain",
+        "csv" => "text/csv",
+        "md" | "markdown" => "text/markdown",
+        "json" => "application/json",
+        "xml" => "application/xml",
+        "html" | "htm" => "text/html",
+        "css" => "text/css",
+        "js" => "application/javascript",
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "svg" => "image/svg+xml",
+        "pdf" => "application/pdf",
+        "stl" => "model/stl",
+        "zip" => "application/zip",
+        "toml" => "text/plain",
+        "yaml" | "yml" => "text/yaml",
+        _ => "application/octet-stream",
+    }
+    .to_owned()
 }
 
 impl Default for InMemoryMetadataStore {
