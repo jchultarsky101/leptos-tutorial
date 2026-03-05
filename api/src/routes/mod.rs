@@ -48,9 +48,9 @@ pub mod stats;
         (name = "stats",   description = "Catalog statistics"),
     ),
     info(
-        title = "File Catalog API",
+        title = "Ember Trove API",
         version = "0.1.0",
-        description = "REST API for a virtual file catalog with folder hierarchies.",
+        description = "REST API for Ember Trove — a virtual file catalog with folder hierarchies.",
     )
 )]
 pub struct ApiDoc;

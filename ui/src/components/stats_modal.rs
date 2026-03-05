@@ -181,7 +181,7 @@ pub fn StatsModal() -> impl IntoView {
                                    flex items-center gap-2">
                             <span class="material-symbols-outlined text-blue-600"
                                 style="font-size:20px;">"analytics"</span>
-                            "Catalog Statistics"
+                            "Ember Trove Statistics"
                         </h2>
                         <button
                             class="text-gray-400 dark:text-gray-500 \

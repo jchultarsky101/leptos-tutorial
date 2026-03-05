@@ -310,7 +310,7 @@ pub fn App() -> impl IntoView {
                            px-4 py-3 flex items-center gap-3">
                 <img src="/assets/logo.svg" alt="" class="h-6 w-6" />
                 <h1 class="text-base font-semibold tracking-tight text-white">
-                    "File Catalog"
+                    "Ember Trove"
                 </h1>
                 <HamburgerMenu />
             </header>
