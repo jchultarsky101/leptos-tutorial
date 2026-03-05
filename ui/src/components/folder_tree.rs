@@ -187,7 +187,8 @@ pub fn FolderTree() -> impl IntoView {
                                      bg-gray-900 text-white cursor-pointer"
                                 } else {
                                     "flex items-center gap-0.5 pr-2 py-0.5 rounded mx-1 \
-                                     text-gray-600 hover:bg-gray-100 cursor-pointer"
+                                     text-gray-600 dark:text-gray-300 \
+                                     hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                                 }
                                 style=format!("padding-left: {}px;", 4 + indent_px)
                             >
@@ -198,7 +199,8 @@ pub fn FolderTree() -> impl IntoView {
                                          opacity-70 hover:opacity-100"
                                     } else {
                                         "w-5 h-5 flex-shrink-0 flex items-center justify-center \
-                                         text-gray-400 hover:text-gray-700"
+                                         text-gray-400 dark:text-gray-500 \
+                                         hover:text-gray-700 dark:hover:text-gray-300"
                                     }
                                     on:click=move |ev| {
                                         ev.stop_propagation();

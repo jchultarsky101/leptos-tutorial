@@ -227,6 +227,24 @@ pub async fn search(query: String, fuzzy: bool) -> Result<SearchResultsDto, UiEr
     }
 }
 
+// ── Statistics ────────────────────────────────────────────────────────────────
+
+/// Fetch aggregate catalog statistics.
+pub async fn get_stats() -> Result<common::dto::StatsDto, UiError> {
+    let url = format!("{API_BASE}/stats");
+    let resp = Request::get(&url)
+        .send()
+        .await
+        .map_err(|e| UiError::Network(e.to_string()))?;
+    if resp.ok() {
+        resp.json::<common::dto::StatsDto>()
+            .await
+            .map_err(|e| UiError::Parse(e.to_string()))
+    } else {
+        Err(api_error(resp).await)
+    }
+}
+
 /// Rename and/or move a file (at least one field must be `Some`).
 pub async fn patch_file(path: CatalogPath, req: PatchFileRequest) -> Result<FileDto, UiError> {
     let url = format!("{API_BASE}/files/{}", path_segment(&path));

@@ -72,10 +72,11 @@ pub fn SearchBar() -> impl IntoView {
     };
 
     view! {
-        <div class="flex-shrink-0 bg-white border-b border-gray-200 \
+        <div class="flex-shrink-0 bg-white dark:bg-gray-800 border-b \
+                     border-gray-200 dark:border-gray-700 \
                      px-4 py-2 flex items-center gap-3">
             // Search icon
-            <span class="material-symbols-outlined text-gray-400"
+            <span class="material-symbols-outlined text-gray-400 dark:text-gray-500"
                   style="font-size:20px;">"search"</span>
 
             // Text input
@@ -84,7 +85,8 @@ pub fn SearchBar() -> impl IntoView {
                 type="text"
                 placeholder="Search files and folders..."
                 class="flex-1 min-w-0 text-sm bg-transparent border-none \
-                       outline-none placeholder-gray-400 text-gray-700"
+                       outline-none placeholder-gray-400 dark:placeholder-gray-600 \
+                       text-gray-700 dark:text-gray-200"
                 on:input=on_input
             />
 
@@ -102,7 +104,7 @@ pub fn SearchBar() -> impl IntoView {
 
             // Fuzzy checkbox
             <label class="flex items-center gap-1.5 text-xs text-gray-500 \
-                          cursor-pointer select-none whitespace-nowrap">
+                          dark:text-gray-400 cursor-pointer select-none whitespace-nowrap">
                 <input
                     type="checkbox"
                     class="accent-blue-500"

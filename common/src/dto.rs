@@ -127,6 +127,27 @@ pub struct SearchResultsDto {
     pub results: Vec<SearchResultDto>,
 }
 
+// ── Statistics ────────────────────────────────────────────────────────────────
+
+/// Upload count for a single calendar day.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct DayCount {
+    /// ISO 8601 date string (YYYY-MM-DD, UTC).
+    pub date: String,
+    pub count: u64,
+}
+
+/// Aggregate statistics for the catalog.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct StatsDto {
+    pub total_files: u64,
+    /// Excludes the implicit root folder.
+    pub total_folders: u64,
+    pub total_size_bytes: u64,
+    /// File uploads bucketed by calendar day (UTC), sorted ascending by date.
+    pub uploads_by_day: Vec<DayCount>,
+}
+
 // ── Generic error response ────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
