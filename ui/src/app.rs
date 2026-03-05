@@ -8,10 +8,126 @@ use wasm_bindgen::prelude::*;
 use crate::{
     api,
     components::{
-        Breadcrumb, FileGrid, FilePreview, FolderTree, Modals, SearchBar, SearchResults, Toolbar,
+        Breadcrumb, FileGrid, FilePreview, FolderTree, HamburgerMenu, Modals, SearchBar,
+        SearchResults, StatsModal, Toolbar,
     },
     error::UiError,
 };
+
+// ── Theme ─────────────────────────────────────────────────────────────────────
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Theme {
+    Light,
+    Dark,
+}
+
+// ── App-wide settings ─────────────────────────────────────────────────────────
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SortField {
+    Name,
+    Date,
+    Size,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum GlobalSortDir {
+    Asc,
+    Desc,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DateFormat {
+    Relative,
+    Absolute,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct AppSettings {
+    pub sort_field: SortField,
+    pub sort_dir: GlobalSortDir,
+    pub date_format: DateFormat,
+    pub preview_auto_open: bool,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            sort_field: SortField::Name,
+            sort_dir: GlobalSortDir::Asc,
+            date_format: DateFormat::Relative,
+            preview_auto_open: false,
+        }
+    }
+}
+
+// ── localStorage helpers ──────────────────────────────────────────────────────
+
+fn local_storage() -> Option<web_sys::Storage> {
+    web_sys::window()
+        .and_then(|w| w.local_storage().ok())
+        .flatten()
+}
+
+pub fn storage_get(key: &str) -> Option<String> {
+    local_storage().and_then(|s| s.get_item(key).ok()).flatten()
+}
+
+pub fn storage_set(key: &str, value: &str) {
+    if let Some(s) = local_storage() {
+        let _ = s.set_item(key, value);
+    }
+}
+
+fn load_theme() -> Theme {
+    match storage_get("theme").as_deref() {
+        Some("dark") => Theme::Dark,
+        _ => Theme::Light,
+    }
+}
+
+fn load_settings() -> AppSettings {
+    let sort_field = match storage_get("sort_field").as_deref() {
+        Some("date") => SortField::Date,
+        Some("size") => SortField::Size,
+        _ => SortField::Name,
+    };
+    let sort_dir = match storage_get("sort_dir").as_deref() {
+        Some("desc") => GlobalSortDir::Desc,
+        _ => GlobalSortDir::Asc,
+    };
+    let date_format = match storage_get("date_format").as_deref() {
+        Some("absolute") => DateFormat::Absolute,
+        _ => DateFormat::Relative,
+    };
+    let preview_auto_open = storage_get("preview_auto_open").as_deref() != Some("false");
+    AppSettings {
+        sort_field,
+        sort_dir,
+        date_format,
+        preview_auto_open,
+    }
+}
+
+/// Apply or remove the `.dark` class on `<html>`.
+fn apply_theme(theme: &Theme) {
+    let Some(win) = web_sys::window() else {
+        return;
+    };
+    let Some(doc) = win.document() else { return };
+    let Some(root) = doc.document_element() else {
+        return;
+    };
+    match theme {
+        Theme::Dark => {
+            let _ = root.class_list().add_1("dark");
+        }
+        Theme::Light => {
+            let _ = root.class_list().remove_1("dark");
+        }
+    }
+}
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum ItemKind {
@@ -63,6 +179,18 @@ const DEFAULT_PREVIEW_W: f64 = 400.0;
 
 #[component]
 pub fn App() -> impl IntoView {
+    // ── Theme & settings (localStorage-backed) ────────────────────────────────
+    let theme: RwSignal<Theme> = RwSignal::new(load_theme());
+    let settings: RwSignal<AppSettings> = RwSignal::new(load_settings());
+    let stats_open: RwSignal<bool> = RwSignal::new(false);
+
+    // Apply the initial theme immediately (before first render).
+    apply_theme(&theme.get_untracked());
+
+    provide_context(theme);
+    provide_context(settings);
+    provide_context(stats_open);
+
     let current_path = RwSignal::new(CatalogPath::new("/").expect("root path is always valid"));
     let selected: RwSignal<Vec<SelectedItem>> = RwSignal::new(Vec::new());
     let modal: RwSignal<Option<ModalState>> = RwSignal::new(None);
@@ -100,6 +228,11 @@ pub fn App() -> impl IntoView {
     Effect::new(move |_| {
         let _ = current_path.get();
         preview_file.set(None);
+    });
+
+    // Keep the `dark` class on <html> in sync with the theme signal.
+    Effect::new(move |_| {
+        apply_theme(&theme.get());
     });
 
     // ── Search resource ────────────────────────────────────────────────────────
@@ -166,7 +299,7 @@ pub fn App() -> impl IntoView {
 
     view! {
         // Full-viewport flex column — no scroll on the outer shell.
-        <div class="h-screen flex flex-col bg-gray-50 overflow-hidden">
+        <div class="h-screen flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
             // Drag overlay — shown whenever any panel resize is in progress.
             <Show when=move || drag_active.get() || preview_drag_active.get()>
                 <div class="fixed inset-0 z-50 cursor-col-resize" />
@@ -174,11 +307,12 @@ pub fn App() -> impl IntoView {
 
             // ── App header ────────────────────────────────────────────────────
             <header class="flex-shrink-0 bg-gray-900 \
-                           px-6 py-3 flex items-center gap-3">
+                           px-4 py-3 flex items-center gap-3">
                 <img src="/assets/logo.svg" alt="" class="h-6 w-6" />
                 <h1 class="text-base font-semibold tracking-tight text-white">
                     "File Catalog"
                 </h1>
+                <HamburgerMenu />
             </header>
 
             // ── Search bar ────────────────────────────────────────────────────
@@ -208,7 +342,8 @@ pub fn App() -> impl IntoView {
 
             // ── Breadcrumb (left) + Toolbar (right) in one row ───────────────
             <Show when=move || !search_active()>
-                <div class="flex-shrink-0 bg-white border-b border-gray-100 \
+                <div class="flex-shrink-0 bg-white dark:bg-gray-800 border-b \
+                             border-gray-100 dark:border-gray-700 \
                              px-4 flex items-center justify-between gap-4 min-h-[48px]">
                     <div class="flex-1 min-w-0">
                         <Breadcrumb />
@@ -224,12 +359,15 @@ pub fn App() -> impl IntoView {
                     <div class="flex-1 min-h-0 flex gap-0 p-3">
                         // Folder tree panel
                         <div
-                            class="flex-shrink-0 bg-white border border-gray-200 rounded-lg \
+                            class="flex-shrink-0 bg-white dark:bg-gray-800 border \
+                                   border-gray-200 dark:border-gray-700 rounded-lg \
                                    shadow-sm flex flex-col overflow-hidden"
                             style=move || format!("width: {}px;", tree_w.get())
                         >
-                            <div class="px-3 py-1.5 border-b border-gray-100 flex-shrink-0">
-                                <span class="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                            <div class="px-3 py-1.5 border-b border-gray-100 \
+                                        dark:border-gray-700 flex-shrink-0">
+                                <span class="text-xs font-medium text-gray-400 \
+                                             dark:text-gray-500 uppercase tracking-wider">
                                     "Folders"
                                 </span>
                             </div>
@@ -269,7 +407,8 @@ pub fn App() -> impl IntoView {
                                 }
                             />
                             <div
-                                class="flex-shrink-0 bg-white border border-gray-200 \
+                                class="flex-shrink-0 bg-white dark:bg-gray-800 border \
+                                       border-gray-200 dark:border-gray-700 \
                                        rounded-lg shadow-sm flex flex-col overflow-hidden"
                                 style=move || format!("width: {}px;", preview_w.get())
                             >
@@ -286,6 +425,7 @@ pub fn App() -> impl IntoView {
             </Show>
 
             <Modals />
+            <StatsModal />
         </div>
     }
 }

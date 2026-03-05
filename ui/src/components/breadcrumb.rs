@@ -10,7 +10,7 @@ pub fn Breadcrumb() -> impl IntoView {
     let selected = use_context::<RwSignal<Vec<SelectedItem>>>().expect("selected context missing");
 
     view! {
-        <nav class="flex items-center flex-wrap gap-1 text-sm text-gray-500 min-w-0">
+        <nav class="flex items-center flex-wrap gap-1 text-sm text-gray-500 dark:text-gray-400 min-w-0">
             {move || {
                 let path = current_path.get();
                 let path_str = path.as_str().to_owned();
@@ -33,7 +33,7 @@ pub fn Breadcrumb() -> impl IntoView {
                         let is_last = i == last_idx;
                         let sep = if i > 0 {
                             view! {
-                                <span class="text-gray-300 select-none mx-0.5">"/"</span>
+                                <span class="text-gray-300 dark:text-gray-600 select-none mx-0.5">"/"</span>
                             }
                             .into_any()
                         } else {
@@ -42,15 +42,15 @@ pub fn Breadcrumb() -> impl IntoView {
 
                         let node = if is_last {
                             view! {
-                                <span class="font-medium text-gray-900">{name}</span>
+                                <span class="font-medium text-gray-900 dark:text-white">{name}</span>
                             }
                             .into_any()
                         } else if i == 0 {
                             // Root segment — show home icon instead of text
                             view! {
                                 <button
-                                    class="inline-flex items-center text-gray-400 \
-                                           hover:text-gray-900 transition-colors"
+                                    class="inline-flex items-center text-gray-400 dark:text-gray-500 \
+                                           hover:text-gray-900 dark:hover:text-white transition-colors"
                                     on:click=move |_| {
                                         if let Ok(p) = CatalogPath::new(&p_str) {
                                             selected.set(Vec::new());
@@ -67,7 +67,7 @@ pub fn Breadcrumb() -> impl IntoView {
                         } else {
                             view! {
                                 <button
-                                    class="hover:text-gray-900 hover:underline \
+                                    class="hover:text-gray-900 dark:hover:text-white hover:underline \
                                            underline-offset-2 transition-colors"
                                     on:click=move |_| {
                                         if let Ok(p) = CatalogPath::new(&p_str) {

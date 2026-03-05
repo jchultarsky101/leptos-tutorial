@@ -388,6 +388,42 @@ impl MetadataStore for InMemoryMetadataStore {
             ))
         })
     }
+
+    fn stats<'a>(&'a self) -> BoxFuture<'a, Result<common::dto::StatsDto, CatalogError>> {
+        Box::pin(async move {
+            use std::collections::BTreeMap;
+
+            let folders = self.folders.read().await;
+            // Exclude the implicit root folder from the count.
+            let total_folders = folders.values().filter(|e| !e.path.is_root()).count() as u64;
+            drop(folders);
+
+            let files = self.files.read().await;
+            let total_files = files.len() as u64;
+            let total_size_bytes: u64 = files.values().map(|e| e.size_bytes).sum();
+
+            // Bucket uploads by calendar day (UTC). The `created_at` field is
+            // RFC 3339 — the first 10 bytes are always "YYYY-MM-DD".
+            let mut by_day: BTreeMap<String, u64> = BTreeMap::new();
+            for entry in files.values() {
+                let day: String = entry.created_at.chars().take(10).collect();
+                *by_day.entry(day).or_insert(0) += 1;
+            }
+            drop(files);
+
+            let uploads_by_day = by_day
+                .into_iter()
+                .map(|(date, count)| common::dto::DayCount { date, count })
+                .collect();
+
+            Ok(common::dto::StatsDto {
+                total_files,
+                total_folders,
+                total_size_bytes,
+                uploads_by_day,
+            })
+        })
+    }
 }
 
 /// Rewrites a path by replacing the `old_prefix` component with `new_prefix`.

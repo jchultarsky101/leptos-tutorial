@@ -4,6 +4,9 @@
 @source "./src/**/*.rs";
 @source "./index.html";
 
+/* Class-based dark mode: adding `.dark` to <html> activates dark: variants. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   body {
     font-family: 'Inter', system-ui, sans-serif;

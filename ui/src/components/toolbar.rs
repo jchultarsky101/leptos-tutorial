@@ -16,12 +16,14 @@ fn ToolbarBtn(
 ) -> impl IntoView {
     let btn_class = if danger {
         "w-9 h-9 inline-flex items-center justify-center rounded \
-         border border-red-200 text-red-500 \
-         hover:bg-red-50 focus:outline-none transition-colors"
+         border border-red-200 dark:border-red-900 \
+         text-red-500 dark:text-red-400 \
+         hover:bg-red-50 dark:hover:bg-red-900/30 focus:outline-none transition-colors"
     } else {
         "w-9 h-9 inline-flex items-center justify-center rounded \
-         border border-gray-300 text-gray-600 \
-         hover:bg-gray-100 focus:outline-none transition-colors"
+         border border-gray-300 dark:border-gray-600 \
+         text-gray-600 dark:text-gray-300 \
+         hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none transition-colors"
     };
 
     view! {
@@ -195,7 +197,7 @@ pub fn Toolbar() -> impl IntoView {
 
             // Separator — only visible when contextual buttons follow
             <Show when=has_selection>
-                <div class="w-px h-5 bg-gray-200 mx-0.5" />
+                <div class="w-px h-5 bg-gray-200 dark:bg-gray-600 mx-0.5" />
             </Show>
 
             // Download — only when exactly one file is selected
@@ -233,7 +235,7 @@ pub fn Toolbar() -> impl IntoView {
 
             // Selection count badge
             <Show when=has_selection>
-                <span class="ml-1 text-xs text-gray-400 tabular-nums">
+                <span class="ml-1 text-xs text-gray-400 dark:text-gray-500 tabular-nums">
                     {move || format!("{} selected", selected.get().len())}
                 </span>
             </Show>

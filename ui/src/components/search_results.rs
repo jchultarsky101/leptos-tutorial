@@ -20,13 +20,14 @@ pub fn SearchResults() -> impl IntoView {
     };
 
     view! {
-        <div class="flex-1 min-h-0 flex flex-col bg-white border border-gray-200 \
+        <div class="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 \
+                     border border-gray-200 dark:border-gray-700 \
                      rounded-lg shadow-sm overflow-hidden">
             {move || {
                 let data = search_results.get();
                 match data {
                     None => view! {
-                        <div class="flex-1 flex items-center justify-center text-sm text-gray-400">
+                        <div class="flex-1 flex items-center justify-center text-sm text-gray-400 dark:text-gray-500">
                             "Searching..."
                         </div>
                     }.into_any(),
@@ -38,11 +39,11 @@ pub fn SearchResults() -> impl IntoView {
                         view! {
                             <div class="flex flex-col flex-1 min-h-0">
                                 // Header
-                                <div class="flex-shrink-0 px-4 py-2 border-b border-gray-100 \
+                                <div class="flex-shrink-0 px-4 py-2 border-b border-gray-100 dark:border-gray-700 \
                                              flex items-center justify-between">
-                                    <span class="text-sm text-gray-600">
+                                    <span class="text-sm text-gray-600 dark:text-gray-400">
                                         {format!("{count} result{} for ", if count == 1 { "" } else { "s" })}
-                                        <span class="font-medium text-gray-800">
+                                        <span class="font-medium text-gray-800 dark:text-gray-200">
                                             {format!("\"{query_display}\"")}
                                         </span>
                                     </span>
@@ -60,7 +61,7 @@ pub fn SearchResults() -> impl IntoView {
                                     {if results.is_empty() {
                                         view! {
                                             <div class="flex items-center justify-center \
-                                                        h-32 text-sm text-gray-400">
+                                                        h-32 text-sm text-gray-400 dark:text-gray-500">
                                                 "No results found."
                                             </div>
                                         }.into_any()
@@ -117,9 +118,9 @@ pub fn SearchResults() -> impl IntoView {
                                             view! {
                                                 <button
                                                     class="w-full text-left px-4 py-2.5 \
-                                                           hover:bg-blue-50 border-b \
-                                                           border-gray-50 flex items-start \
-                                                           gap-3 focus:outline-none \
+                                                           hover:bg-blue-50 dark:hover:bg-gray-700 \
+                                                           border-b border-gray-50 dark:border-gray-700 \
+                                                           flex items-start gap-3 focus:outline-none \
                                                            transition-colors"
                                                     on:click=on_click
                                                 >
@@ -131,7 +132,7 @@ pub fn SearchResults() -> impl IntoView {
                                                     <div class="flex-1 min-w-0">
                                                         <div class="flex items-center gap-2">
                                                             <span class="text-sm font-medium \
-                                                                         text-gray-800 truncate">
+                                                                         text-gray-800 dark:text-gray-100 truncate">
                                                                 {name}
                                                             </span>
                                                             <span class={format!(
@@ -156,14 +157,14 @@ pub fn SearchResults() -> impl IntoView {
                                                                 }
                                                             })}
                                                         </div>
-                                                        <div class="text-xs text-gray-400 \
+                                                        <div class="text-xs text-gray-400 dark:text-gray-500 \
                                                                      truncate mt-0.5">
                                                             {path_str}
                                                         </div>
                                                         {snippet.map(|s| view! {
-                                                            <div class="text-xs text-gray-500 \
+                                                            <div class="text-xs text-gray-500 dark:text-gray-400 \
                                                                         mt-1 font-mono \
-                                                                        bg-gray-50 rounded \
+                                                                        bg-gray-50 dark:bg-gray-700 rounded \
                                                                         px-2 py-1 truncate">
                                                                 {s}
                                                             </div>

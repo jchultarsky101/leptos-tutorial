@@ -83,6 +83,11 @@ pub trait MetadataStore: Send + Sync + 'static {
 
     /// Return all folder and file entries for search filtering.
     fn search_entries<'a>(&'a self) -> BoxFuture<'a, Result<AllEntries, CatalogError>>;
+
+    // ── Statistics ────────────────────────────────────────────────────────
+
+    /// Return aggregate catalog statistics.
+    fn stats<'a>(&'a self) -> BoxFuture<'a, Result<common::dto::StatsDto, CatalogError>>;
 }
 
 /// Async raw byte storage, separate from metadata.

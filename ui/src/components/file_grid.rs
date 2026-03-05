@@ -163,7 +163,8 @@ pub fn FileGrid() -> impl IntoView {
         </Show>
 
         <div class="flex flex-col min-h-0 h-full \
-                    bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                    bg-white dark:bg-gray-800 rounded-lg shadow-sm \
+                    border border-gray-200 dark:border-gray-700 overflow-hidden">
 
             // ── Scrollable table area ─────────────────────────────────────────
             <div class="flex-1 min-h-0 overflow-auto">
@@ -174,8 +175,8 @@ pub fn FileGrid() -> impl IntoView {
                     let resolved = contents.map(|r| r.clone());
                     match resolved {
                         None => view! {
-                            <div class="p-10 text-center text-gray-400">
-                                <span class="material-symbols-outlined text-gray-300"
+                            <div class="p-10 text-center text-gray-400 dark:text-gray-500">
+                                <span class="material-symbols-outlined text-gray-300 dark:text-gray-600"
                                     style="font-size:40px; display:block; margin-bottom:8px;">
                                     "hourglass_empty"
                                 </span>
@@ -187,8 +188,8 @@ pub fn FileGrid() -> impl IntoView {
                         Some(Err(ref e)) => {
                             let msg = e.to_string();
                             view! {
-                                <div class="p-10 text-center text-red-600">
-                                    <span class="material-symbols-outlined text-red-300"
+                                <div class="p-10 text-center text-red-600 dark:text-red-400">
+                                    <span class="material-symbols-outlined text-red-300 dark:text-red-700"
                                         style="font-size:40px; display:block; margin-bottom:8px;">
                                         "error"
                                     </span>
@@ -201,8 +202,8 @@ pub fn FileGrid() -> impl IntoView {
                         Some(Ok(data)) => {
                             if data.folders.is_empty() && data.files.is_empty() {
                                 return view! {
-                                    <div class="p-10 text-center text-gray-400">
-                                        <span class="material-symbols-outlined text-gray-300"
+                                    <div class="p-10 text-center text-gray-400 dark:text-gray-500">
+                                        <span class="material-symbols-outlined text-gray-300 dark:text-gray-600"
                                             style="font-size:40px; display:block; margin-bottom:8px;">
                                             "inbox"
                                         </span>
@@ -246,20 +247,20 @@ pub fn FileGrid() -> impl IntoView {
 
                             let hdr_cls = |c: SortCol, extra: &'static str| -> String {
                                 let color = if c == col {
-                                    "text-gray-900 font-semibold"
+                                    "text-gray-900 dark:text-white font-semibold"
                                 } else {
-                                    "text-gray-400 font-medium"
+                                    "text-gray-400 dark:text-gray-500 font-medium"
                                 };
                                 format!(
                                     "relative px-3 py-2.5 text-xs uppercase tracking-wider \
-                                     cursor-pointer select-none bg-gray-50 \
-                                     border-r border-gray-200 {color} {extra}"
+                                     cursor-pointer select-none bg-gray-50 dark:bg-gray-700 \
+                                     border-r border-gray-200 dark:border-gray-600 {color} {extra}"
                                 )
                             };
 
                             view! {
                                 <table
-                                    class="divide-y divide-gray-200"
+                                    class="divide-y divide-gray-200 dark:divide-gray-700"
                                     style="table-layout: fixed; width: 100%; \
                                            border-collapse: collapse;"
                                 >
@@ -280,8 +281,8 @@ pub fn FileGrid() -> impl IntoView {
                                     <thead class="sticky top-0 z-10">
                                         <tr>
                                             // Checkbox header — no label.
-                                            <th class="px-1 py-2.5 bg-gray-50 \
-                                                       border-r border-gray-200" />
+                                            <th class="px-1 py-2.5 bg-gray-50 dark:bg-gray-700 \
+                                                       border-r border-gray-200 dark:border-gray-600" />
 
                                             // Name ─────────────────────────────
                                             <th
@@ -291,7 +292,7 @@ pub fn FileGrid() -> impl IntoView {
                                                 {name_label}
                                                 <div
                                                     class="absolute inset-y-0 right-0 w-px \
-                                                           bg-gray-200 hover:w-1 \
+                                                           bg-gray-200 dark:bg-gray-600 hover:w-1 \
                                                            hover:bg-gray-400 \
                                                            cursor-col-resize transition-all z-10"
                                                     on:mousedown=move |e: web_sys::MouseEvent| {
@@ -312,7 +313,7 @@ pub fn FileGrid() -> impl IntoView {
                                                 {size_label}
                                                 <div
                                                     class="absolute inset-y-0 right-0 w-px \
-                                                           bg-gray-200 hover:w-1 \
+                                                           bg-gray-200 dark:bg-gray-600 hover:w-1 \
                                                            hover:bg-gray-400 \
                                                            cursor-col-resize transition-all z-10"
                                                     on:mousedown=move |e: web_sys::MouseEvent| {
@@ -335,7 +336,7 @@ pub fn FileGrid() -> impl IntoView {
                                         </tr>
                                     </thead>
 
-                                    <tbody class="divide-y divide-gray-100">
+                                    <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                                         // Up-one-level row.
                                         {move || {
                                             let path = current_path.get();
@@ -346,7 +347,7 @@ pub fn FileGrid() -> impl IntoView {
                                                 });
                                                 view! {
                                                     <tr
-                                                        class="hover:bg-gray-50 cursor-pointer \
+                                                        class="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer \
                                                                select-none"
                                                         on:click=move |_| {
                                                             selected.set(Vec::new());
@@ -354,16 +355,16 @@ pub fn FileGrid() -> impl IntoView {
                                                         }
                                                     >
                                                         <td class="px-1 py-2.5 \
-                                                                   border-r border-gray-100" />
+                                                                   border-r border-gray-100 dark:border-gray-600" />
                                                         <td class="px-3 py-2.5 text-sm \
-                                                                   text-gray-400 italic \
-                                                                   border-r border-gray-100 \
+                                                                   text-gray-400 dark:text-gray-500 italic \
+                                                                   border-r border-gray-100 dark:border-gray-600 \
                                                                    overflow-hidden \
                                                                    text-ellipsis whitespace-nowrap">
                                                             <span class="flex items-center gap-2">
                                                                 <span
                                                                     class="material-symbols-outlined \
-                                                                           text-gray-300"
+                                                                           text-gray-300 dark:text-gray-600"
                                                                     style="font-size:18px;"
                                                                 >
                                                                     "arrow_upward"
@@ -372,7 +373,7 @@ pub fn FileGrid() -> impl IntoView {
                                                             </span>
                                                         </td>
                                                         <td class="px-3 py-2.5 \
-                                                                   border-r border-gray-100" />
+                                                                   border-r border-gray-100 dark:border-gray-600" />
                                                         <td class="px-3 py-2.5" />
                                                     </tr>
                                                 }
@@ -395,9 +396,9 @@ pub fn FileGrid() -> impl IntoView {
                                                 };
                                                 let item2 = item.clone();
                                                 view! {
-                                                    <tr class="hover:bg-gray-50 select-none">
+                                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 select-none">
                                                         <td class="px-1 py-2.5 text-center \
-                                                                   border-r border-gray-100">
+                                                                   border-r border-gray-100 dark:border-gray-600">
                                                             <input
                                                                 type="checkbox"
                                                                 class="rounded border-gray-300"
@@ -413,7 +414,7 @@ pub fn FileGrid() -> impl IntoView {
                                                         </td>
                                                         <td
                                                             class="px-3 py-2.5 cursor-pointer \
-                                                                   border-r border-gray-100 \
+                                                                   border-r border-gray-100 dark:border-gray-600 \
                                                                    overflow-hidden \
                                                                    text-ellipsis whitespace-nowrap"
                                                             on:click=move |_| {
@@ -425,11 +426,11 @@ pub fn FileGrid() -> impl IntoView {
                                                             <span
                                                                 class="flex items-center gap-2 \
                                                                        text-sm font-medium \
-                                                                       text-gray-800"
+                                                                       text-gray-800 dark:text-gray-100"
                                                             >
                                                                 <span
                                                                     class="material-symbols-outlined \
-                                                                           text-gray-400"
+                                                                           text-gray-400 dark:text-gray-500"
                                                                     style="font-size:18px;"
                                                                 >
                                                                     "folder"
@@ -438,12 +439,12 @@ pub fn FileGrid() -> impl IntoView {
                                                             </span>
                                                         </td>
                                                         <td class="px-3 py-2.5 text-right \
-                                                                   text-sm text-gray-300 \
-                                                                   border-r border-gray-100">
+                                                                   text-sm text-gray-300 dark:text-gray-600 \
+                                                                   border-r border-gray-100 dark:border-gray-600">
                                                             "—"
                                                         </td>
                                                         <td class="px-3 py-2.5 text-right \
-                                                                   text-sm text-gray-400 \
+                                                                   text-sm text-gray-400 dark:text-gray-500 \
                                                                    tabular-nums">
                                                             {modified}
                                                         </td>
@@ -468,9 +469,9 @@ pub fn FileGrid() -> impl IntoView {
                                                 };
                                                 let item2 = item.clone();
                                                 view! {
-                                                    <tr class="hover:bg-gray-50 select-none">
+                                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 select-none">
                                                         <td class="px-1 py-2.5 text-center \
-                                                                   border-r border-gray-100">
+                                                                   border-r border-gray-100 dark:border-gray-600">
                                                             <input
                                                                 type="checkbox"
                                                                 class="rounded border-gray-300"
@@ -486,10 +487,10 @@ pub fn FileGrid() -> impl IntoView {
                                                         </td>
                                                         <td
                                                             class="px-3 py-2.5 cursor-pointer \
-                                                                   border-r border-gray-100 \
+                                                                   border-r border-gray-100 dark:border-gray-600 \
                                                                    overflow-hidden \
                                                                    text-ellipsis whitespace-nowrap \
-                                                                   hover:bg-gray-100 transition-colors"
+                                                                   hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                                                             on:click=move |_| {
                                                                 preview_file.set(Some(
                                                                     PreviewTarget {
@@ -502,11 +503,11 @@ pub fn FileGrid() -> impl IntoView {
                                                         >
                                                             <span
                                                                 class="flex items-center gap-2 \
-                                                                       text-sm text-gray-800"
+                                                                       text-sm text-gray-800 dark:text-gray-100"
                                                             >
                                                                 <span
                                                                     class="material-symbols-outlined \
-                                                                           text-gray-400"
+                                                                           text-gray-400 dark:text-gray-500"
                                                                     style="font-size:18px;"
                                                                 >
                                                                     {icon}
@@ -515,13 +516,13 @@ pub fn FileGrid() -> impl IntoView {
                                                             </span>
                                                         </td>
                                                         <td class="px-3 py-2.5 text-right \
-                                                                   text-sm text-gray-500 \
-                                                                   border-r border-gray-100 \
+                                                                   text-sm text-gray-500 dark:text-gray-400 \
+                                                                   border-r border-gray-100 dark:border-gray-600 \
                                                                    tabular-nums">
                                                             {size}
                                                         </td>
                                                         <td class="px-3 py-2.5 text-right \
-                                                                   text-sm text-gray-400 \
+                                                                   text-sm text-gray-400 dark:text-gray-500 \
                                                                    tabular-nums">
                                                             {modified}
                                                         </td>
@@ -545,14 +546,15 @@ pub fn FileGrid() -> impl IntoView {
                     let nf = data.folders.len();
                     let nfiles = data.files.len();
                     view! {
-                        <div class="flex-shrink-0 border-t border-gray-100 px-4 py-1.5 \
-                                     flex items-center gap-4 text-xs text-gray-400">
+                        <div class="flex-shrink-0 border-t border-gray-100 dark:border-gray-700 \
+                                     px-4 py-1.5 flex items-center gap-4 \
+                                     text-xs text-gray-400 dark:text-gray-500">
                             <span>
-                                <strong class="text-gray-500 tabular-nums">{nf}</strong>
+                                <strong class="text-gray-500 dark:text-gray-400 tabular-nums">{nf}</strong>
                                 {if nf == 1 { " subfolder" } else { " subfolders" }}
                             </span>
                             <span>
-                                <strong class="text-gray-500 tabular-nums">{nfiles}</strong>
+                                <strong class="text-gray-500 dark:text-gray-400 tabular-nums">{nfiles}</strong>
                                 {if nfiles == 1 { " file" } else { " files" }}
                             </span>
                         </div>

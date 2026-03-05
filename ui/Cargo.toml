@@ -28,6 +28,7 @@ web-sys = { version = "0.3", features = [
     "HtmlElement",
     "HtmlInputElement",
     "MouseEvent",
+    "Storage",
     "Window",
 ] }
 js-sys = "0.3"
