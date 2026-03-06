@@ -245,6 +245,57 @@ pub async fn get_stats() -> Result<common::dto::StatsDto, UiError> {
     }
 }
 
+/// Replace the text content of an existing file.
+///
+/// Wraps `content` in a `Blob` (MIME type `text/markdown`) and sends it to
+/// `PUT /files/{path}` as multipart/form-data, which overwrites the file in
+/// place while preserving its metadata entry.
+pub async fn save_file_text(path: &CatalogPath, content: &str) -> Result<FileDto, UiError> {
+    use js_sys::Array;
+    use wasm_bindgen::JsValue;
+
+    let arr = Array::new();
+    arr.push(&JsValue::from_str(content));
+    let opts = web_sys::BlobPropertyBag::new();
+    opts.set_type("text/markdown");
+    let blob = web_sys::Blob::new_with_str_sequence_and_options(&arr, &opts).map_err(|e| {
+        UiError::Network(
+            e.as_string()
+                .unwrap_or_else(|| "blob creation failed".into()),
+        )
+    })?;
+
+    let form = web_sys::FormData::new().map_err(|e| {
+        UiError::Network(
+            e.as_string()
+                .unwrap_or_else(|| "FormData creation failed".into()),
+        )
+    })?;
+    form.append_with_blob_and_filename("file", &blob, path.name())
+        .map_err(|e| {
+            UiError::Network(
+                e.as_string()
+                    .unwrap_or_else(|| "FormData append failed".into()),
+            )
+        })?;
+
+    let url = format!("{API_BASE}/files/{}", path_segment(path));
+    let resp = Request::put(&url)
+        .body(JsValue::from(form))
+        .map_err(|e| UiError::Network(e.to_string()))?
+        .send()
+        .await
+        .map_err(|e| UiError::Network(e.to_string()))?;
+
+    if resp.ok() {
+        resp.json::<FileDto>()
+            .await
+            .map_err(|e| UiError::Parse(e.to_string()))
+    } else {
+        Err(api_error(resp).await)
+    }
+}
+
 /// Rename and/or move a file (at least one field must be `Some`).
 pub async fn patch_file(path: CatalogPath, req: PatchFileRequest) -> Result<FileDto, UiError> {
     let url = format!("{API_BASE}/files/{}", path_segment(&path));
