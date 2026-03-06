@@ -76,6 +76,26 @@
 .prose input[type="checkbox"] { margin-right: 0.4em; }
 .prose > :first-child { margin-top: 0; }
 
+/* ── Markdown prose — dark mode ──────────────────────────────────────────── */
+.dark .prose h1, .dark .prose h2, .dark .prose h3,
+.dark .prose h4, .dark .prose h5, .dark .prose h6 { color: #e5e7eb; /* gray-200 */ }
+.dark .prose h2 { border-bottom-color: #374151; /* gray-700 */ }
+.dark .prose p { color: #d1d5db; /* gray-300 */ }
+.dark .prose ul, .dark .prose ol { color: #d1d5db; }
+.dark .prose li { color: #d1d5db; }
+.dark .prose code { background: #374151; /* gray-700 */ color: #f87171; /* red-400 */ }
+.dark .prose pre { background: #111827; /* gray-900 */ }
+.dark .prose pre code { color: #e5e7eb; /* gray-200 */ }
+.dark .prose blockquote { border-left-color: #4b5563; /* gray-600 */ color: #9ca3af; /* gray-400 */ }
+.dark .prose a { color: #60a5fa; /* blue-400 */ }
+.dark .prose a:hover { color: #93c5fd; /* blue-300 */ }
+.dark .prose hr { border-color: #374151; /* gray-700 */ }
+.dark .prose th, .dark .prose td { border-color: #374151; /* gray-700 */ }
+.dark .prose th { background: #1f2937; /* gray-800 */ color: #e5e7eb; }
+.dark .prose td { color: #d1d5db; }
+.dark .prose del { color: #6b7280; }
+.dark .prose strong { color: #f9fafb; /* gray-50 */ }
+
 /* ── CSV table ────────────────────────────────────────────────────────────── */
 .csv-table {
   width: max-content;

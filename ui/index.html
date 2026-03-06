@@ -61,8 +61,8 @@
           _renderer.setPixelRatio(window.devicePixelRatio);
           container.appendChild(_renderer.domElement);
 
+          _renderer.setClearColor(0x000000, 0); // transparent — background driven by CSS
           _scene = new THREE.Scene();
-          _scene.background = new THREE.Color(0xf9fafb);
 
           _camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 10000);
 

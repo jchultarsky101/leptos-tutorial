@@ -330,13 +330,13 @@ pub fn FilePreview() -> impl IntoView {
                 PreviewKind::Stl => {
                     let is_loading = move || !stl_active.get();
                     view! {
-                        <div class="flex-1 flex flex-col overflow-hidden bg-gray-50">
+                        <div class="flex-1 flex flex-col overflow-hidden bg-gray-50 dark:bg-gray-800">
                             // Canvas area (grows to fill).
                             <div class="flex-1 relative overflow-hidden min-h-0">
                                 // Loading overlay — shown until JS scene reports ready.
                                 <Show when=is_loading>
                                     <div class="absolute inset-0 flex items-center justify-center \
-                                                bg-gray-50/80 z-10">
+                                                bg-gray-50/80 dark:bg-gray-800/80 z-10">
                                         <div class="flex flex-col items-center gap-2">
                                             <span class="material-symbols-outlined text-gray-300 \
                                                          animate-spin" style="font-size:32px;">
@@ -356,8 +356,8 @@ pub fn FilePreview() -> impl IntoView {
                             </div>
                             // Controls toolbar — shown once loaded.
                             <Show when=move || stl_active.get()>
-                                <div class="flex-shrink-0 border-t border-gray-200 \
-                                            bg-white px-2 py-1.5 flex items-center \
+                                <div class="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 \
+                                            bg-white dark:bg-gray-800 px-2 py-1.5 flex items-center \
                                             justify-center gap-1">
                                     <button
                                         class="p-1 rounded hover:bg-gray-100 text-gray-500 \
@@ -701,7 +701,7 @@ pub fn FilePreview() -> impl IntoView {
                                         <div
                                             node_ref=md_ref
                                             class="prose prose-sm max-w-none \
-                                                   text-gray-800 leading-relaxed"
+                                                   text-gray-800 dark:text-gray-200 leading-relaxed"
                                         />
                                     </div>
                                 }
