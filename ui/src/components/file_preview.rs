@@ -1,5 +1,6 @@
 use leptos::prelude::*;
 use pulldown_cmark::{Event, Options, Parser, html as cm_html};
+use wasm_bindgen::JsCast;
 
 use crate::api;
 use crate::app::{ModalState, PreviewTarget};
@@ -7,7 +8,7 @@ use crate::error::UiError;
 
 // ── Preview kind classification ───────────────────────────────────────────────
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum PreviewKind {
     Image,
     Markdown,
@@ -69,16 +70,20 @@ fn render_markdown(input: &str) -> String {
         | Options::ENABLE_TASKLISTS
         | Options::ENABLE_FOOTNOTES;
 
-    // Strip raw HTML blocks and inline HTML from the event stream.
-    let parser = Parser::new_ext(input, opts)
-        .filter(|e| !matches!(e, Event::Html(_) | Event::InlineHtml(_)));
+    // Filter raw HTML *blocks* (e.g. <script> sections) but keep InlineHtml so
+    // that task-list checkboxes emitted by pulldown-cmark 0.12+ survive.
+    let parser = Parser::new_ext(input, opts).filter(|e| !matches!(e, Event::Html(_)));
 
     let mut html_buf = String::new();
     cm_html::push_html(&mut html_buf, parser);
 
-    // Second pass: sanitize with ammonia to remove any remaining dangerous tags
-    // or attributes that slipped through (e.g., event handlers).
-    ammonia::clean(&html_buf)
+    // Sanitize with ammonia. Allow <input> so that task-list checkboxes
+    // (`<input type="checkbox" disabled="">`) are preserved.
+    ammonia::Builder::default()
+        .add_tags(&["input"])
+        .add_tag_attributes("input", &["type", "disabled", "checked"])
+        .clean(&html_buf)
+        .to_string()
 }
 
 // ── STL Three.js interop ──────────────────────────────────────────────────────
@@ -199,7 +204,22 @@ pub fn FilePreview() -> impl IntoView {
     let preview_file =
         use_context::<RwSignal<Option<PreviewTarget>>>().expect("preview_file context missing");
     let modal = use_context::<RwSignal<Option<ModalState>>>().expect("modal context missing");
+    let catalog_version = use_context::<RwSignal<u32>>().expect("catalog_version context missing");
     let _ = modal; // available for future preview actions
+
+    // ── Editor state ──────────────────────────────────────────────────────────
+
+    // Whether the Markdown editor textarea is open.
+    let is_editing: RwSignal<bool> = RwSignal::new(false);
+    // Live textarea content while editing.
+    let edit_content: RwSignal<String> = RwSignal::new(String::new());
+    // True while the save API call is in flight.
+    let saving: RwSignal<bool> = RwSignal::new(false);
+    // Error message from the most recent failed save.
+    let save_error: RwSignal<Option<String>> = RwSignal::new(None);
+    // Overrides text_resource immediately after a successful save so the user
+    // sees the new content without waiting for a re-fetch.
+    let committed_content: RwSignal<Option<String>> = RwSignal::new(None);
 
     // Fetch text content reactively whenever preview_file changes.
     // Returns None for image/stl/unsupported (no fetch needed) or while target is None.
@@ -224,10 +244,20 @@ pub fn FilePreview() -> impl IntoView {
     // Whenever rendered Markdown HTML changes, inject it into the DOM.
     // We use a NodeRef + Effect instead of `prop:innerHTML` so Leptos does not
     // escape the HTML string.
+    // Always read text_resource (for tracking) but prefer committed_content if set.
     Effect::new(move |_| {
+        // Don't touch the DOM while the user is in the editor.
+        if is_editing.get() {
+            return;
+        }
         let target = preview_file.get();
-        let html = match (target, text_resource.map(|r| r.clone())) {
-            (Some(t), Some(Some(Ok(ref text))))
+        let resource_text = text_resource
+            .map(|r| r.clone())
+            .and_then(|outer| outer)
+            .and_then(|inner| inner.ok());
+        let text_opt = committed_content.get().or(resource_text);
+        let html = match (target, text_opt) {
+            (Some(t), Some(ref text))
                 if classify(&t.content_type, t.path.name()) == PreviewKind::Markdown =>
             {
                 render_markdown(text)
@@ -237,6 +267,15 @@ pub fn FilePreview() -> impl IntoView {
         if let Some(el) = md_ref.get() {
             el.set_inner_html(&html);
         }
+    });
+
+    // Reset editor state whenever the preview target changes.
+    Effect::new(move |_| {
+        let _ = preview_file.get();
+        is_editing.set(false);
+        committed_content.set(None);
+        save_error.set(None);
+        saving.set(false);
     });
 
     // ── STL state ─────────────────────────────────────────────────────────────
@@ -276,11 +315,19 @@ pub fn FilePreview() -> impl IntoView {
         }
     });
 
+    // Derived: is the current preview target a Markdown file?
+    let is_markdown = move || {
+        preview_file
+            .get()
+            .map(|t| classify(&t.content_type, t.path.name()) == PreviewKind::Markdown)
+            .unwrap_or(false)
+    };
+
     view! {
         // ── Panel header ──────────────────────────────────────────────────────
         <div class="flex-shrink-0 flex items-center justify-between \
-                     px-3 py-2 border-b border-gray-100 min-h-[40px]">
-            <span class="text-xs font-medium text-gray-500 truncate">
+                     px-3 py-2 border-b border-gray-100 dark:border-gray-700 min-h-[40px]">
+            <span class="text-xs font-medium text-gray-500 dark:text-gray-400 truncate">
                 {move || {
                     preview_file
                         .get()
@@ -288,14 +335,87 @@ pub fn FilePreview() -> impl IntoView {
                         .unwrap_or_default()
                 }}
             </span>
-            <button
-                class="ml-2 flex-shrink-0 text-gray-400 hover:text-gray-700 \
-                       focus:outline-none transition-colors"
-                on:click=move |_| preview_file.set(None)
-                title="Close preview"
-            >
-                <span class="material-symbols-outlined" style="font-size:18px;">"close"</span>
-            </button>
+            <div class="ml-2 flex-shrink-0 flex items-center gap-1">
+                // ── Edit button (view mode, Markdown only) ────────────────────
+                <Show when=move || is_markdown() && !is_editing.get()>
+                    <button
+                        class="p-0.5 rounded text-gray-400 \
+                               hover:text-indigo-600 dark:hover:text-indigo-400 \
+                               focus:outline-none transition-colors"
+                        title="Edit"
+                        on:click=move |_| {
+                            // Pre-populate textarea from committed or loaded text.
+                            let current = committed_content.get_untracked().or_else(|| {
+                                text_resource
+                                    .map(|r| r.clone())
+                                    .and_then(|outer| outer)
+                                    .and_then(|inner| inner.ok())
+                            }).unwrap_or_default();
+                            edit_content.set(current);
+                            save_error.set(None);
+                            is_editing.set(true);
+                        }
+                    >
+                        <span class="material-symbols-outlined" style="font-size:18px;">
+                            "edit"
+                        </span>
+                    </button>
+                </Show>
+
+                // ── Save / Cancel (edit mode) ─────────────────────────────────
+                <Show when=move || is_editing.get()>
+                    <button
+                        class="text-xs px-2 py-0.5 rounded bg-indigo-600 text-white \
+                               hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                        prop:disabled=move || saving.get()
+                        title="Save"
+                        on:click=move |_| {
+                            let Some(target) = preview_file.get_untracked() else { return };
+                            let content = edit_content.get_untracked();
+                            saving.set(true);
+                            save_error.set(None);
+                            wasm_bindgen_futures::spawn_local(async move {
+                                match api::save_file_text(&target.path, &content).await {
+                                    Ok(_) => {
+                                        committed_content.set(Some(content));
+                                        is_editing.set(false);
+                                        saving.set(false);
+                                        catalog_version.update(|v| *v += 1);
+                                    }
+                                    Err(e) => {
+                                        save_error.set(Some(e.to_string()));
+                                        saving.set(false);
+                                    }
+                                }
+                            });
+                        }
+                    >
+                        {move || if saving.get() { "Saving\u{2026}" } else { "Save" }}
+                    </button>
+                    <button
+                        class="text-xs px-2 py-0.5 rounded border border-gray-300 \
+                               dark:border-gray-600 text-gray-600 dark:text-gray-300 \
+                               hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        title="Cancel"
+                        on:click=move |_| {
+                            is_editing.set(false);
+                            save_error.set(None);
+                        }
+                    >
+                        "Cancel"
+                    </button>
+                </Show>
+
+                // ── Close ─────────────────────────────────────────────────────
+                <button
+                    class="p-0.5 text-gray-400 hover:text-gray-700 \
+                           dark:hover:text-gray-200 focus:outline-none transition-colors"
+                    on:click=move |_| preview_file.set(None)
+                    title="Close preview"
+                >
+                    <span class="material-symbols-outlined" style="font-size:18px;">"close"</span>
+                </button>
+            </div>
         </div>
 
         // ── Panel body ────────────────────────────────────────────────────────
@@ -695,14 +815,57 @@ pub fn FilePreview() -> impl IntoView {
                         // Content ready.
                         Some(Some(Ok(ref text))) => {
                             if kind == PreviewKind::Markdown {
-                                // innerHTML is set by the Effect above via md_ref.
                                 view! {
-                                    <div class="flex-1 overflow-auto p-4">
-                                        <div
-                                            node_ref=md_ref
-                                            class="prose prose-sm max-w-none \
-                                                   text-gray-800 dark:text-gray-200 leading-relaxed"
-                                        />
+                                    <div class="flex-1 flex flex-col overflow-hidden">
+                                        // Save-error banner.
+                                        <Show when=move || save_error.get().is_some()>
+                                            <div class="flex-shrink-0 px-4 pt-3">
+                                                <div class="text-xs text-red-600 \
+                                                            bg-red-50 dark:bg-red-900/30 \
+                                                            border border-red-200 dark:border-red-700 \
+                                                            rounded px-3 py-2">
+                                                    {move || save_error.get().unwrap_or_default()}
+                                                </div>
+                                            </div>
+                                        </Show>
+
+                                        // Editor textarea (edit mode).
+                                        <Show when=move || is_editing.get()>
+                                            <div class="flex-1 min-h-0 p-4 flex flex-col">
+                                                <textarea
+                                                    class="flex-1 w-full min-h-0 font-mono text-sm \
+                                                           text-gray-800 dark:text-gray-200 \
+                                                           bg-white dark:bg-gray-900 \
+                                                           border border-gray-300 dark:border-gray-600 \
+                                                           rounded p-3 resize-none \
+                                                           focus:outline-none focus:ring-2 \
+                                                           focus:ring-indigo-500"
+                                                    prop:value=move || edit_content.get()
+                                                    on:input=move |e: web_sys::Event| {
+                                                        if let Some(el) = e
+                                                            .target()
+                                                            .and_then(|t| {
+                                                                t.dyn_into::<web_sys::HtmlTextAreaElement>().ok()
+                                                            })
+                                                        {
+                                                            edit_content.set(el.value());
+                                                        }
+                                                    }
+                                                />
+                                            </div>
+                                        </Show>
+
+                                        // Rendered view (view mode) — innerHTML set by Effect.
+                                        <Show when=move || !is_editing.get()>
+                                            <div class="flex-1 overflow-auto p-4">
+                                                <div
+                                                    node_ref=md_ref
+                                                    class="prose prose-sm max-w-none \
+                                                           text-gray-800 dark:text-gray-200 \
+                                                           leading-relaxed"
+                                                />
+                                            </div>
+                                        </Show>
                                     </div>
                                 }
                                 .into_any()
@@ -724,5 +887,92 @@ pub fn FilePreview() -> impl IntoView {
                 }
             }
         }}
+    }
+}
+
+// ── Tests ──────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::{PreviewKind, classify, render_markdown};
+
+    // ── classify ──────────────────────────────────────────────────────────────
+
+    #[test]
+    fn classify_markdown_by_extension() {
+        assert_eq!(classify("text/plain", "README.md"), PreviewKind::Markdown);
+        assert_eq!(
+            classify("text/plain", "notes.MARKDOWN"),
+            PreviewKind::Markdown
+        );
+    }
+
+    #[test]
+    fn classify_markdown_by_content_type() {
+        assert_eq!(classify("text/markdown", "file.txt"), PreviewKind::Markdown);
+        assert_eq!(
+            classify("text/x-markdown", "file.txt"),
+            PreviewKind::Markdown
+        );
+    }
+
+    #[test]
+    fn classify_stl_overrides_text_plain() {
+        // ASCII STL files are often served as text/plain; extension wins.
+        assert_eq!(classify("text/plain", "part.stl"), PreviewKind::Stl);
+    }
+
+    #[test]
+    fn classify_csv_by_extension() {
+        assert_eq!(classify("text/plain", "data.csv"), PreviewKind::Csv);
+    }
+
+    #[test]
+    fn classify_image() {
+        assert_eq!(classify("image/png", "photo.png"), PreviewKind::Image);
+    }
+
+    // ── render_markdown ───────────────────────────────────────────────────────
+
+    #[test]
+    fn render_markdown_heading() {
+        let html = render_markdown("# Hello");
+        assert!(html.contains("<h1>"), "expected <h1> in: {html}");
+        assert!(html.contains("Hello"));
+    }
+
+    #[test]
+    fn render_markdown_strips_script_tags() {
+        // "safe" in a separate paragraph so it is not absorbed into the HTML block.
+        let html = render_markdown("<script>evil()</script>\n\nsafe");
+        assert!(
+            !html.contains("<script"),
+            "script should be stripped: {html}"
+        );
+        assert!(html.contains("safe"), "expected 'safe' in: {html}");
+    }
+
+    #[test]
+    fn render_markdown_empty_gives_empty() {
+        assert_eq!(render_markdown(""), "");
+    }
+
+    #[test]
+    fn render_markdown_bold_and_italic() {
+        let html = render_markdown("**bold** and *italic*");
+        assert!(html.contains("<strong>bold</strong>"));
+        assert!(html.contains("<em>italic</em>"));
+    }
+
+    #[test]
+    fn render_markdown_code_block() {
+        let html = render_markdown("```\nfn main() {}\n```");
+        assert!(html.contains("<code>"), "expected <code> in: {html}");
+    }
+
+    #[test]
+    fn render_markdown_task_list() {
+        let html = render_markdown("- [x] done\n- [ ] todo");
+        assert!(html.contains("checkbox"), "expected checkbox in: {html}");
     }
 }
