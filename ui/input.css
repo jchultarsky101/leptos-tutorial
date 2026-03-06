@@ -159,6 +159,23 @@
 .csv-table tbody tr:nth-child(even) td { background: #fafbfc; }
 .csv-table tbody tr:hover td { background: #eff6ff; } /* blue-50 */
 
+/* ── CSV table — dark mode ────────────────────────────────────────────────── */
+.dark .csv-table th {
+  background: #1f2937; /* gray-800 */
+  border-bottom-color: #374151; /* gray-700 */
+  border-right-color: #374151;
+  color: #e5e7eb; /* gray-200 */
+}
+.dark .csv-th-inner:hover { background: #374151; /* gray-700 */ }
+.dark .csv-sort-icon { color: #6b7280; /* gray-500 */ }
+.dark .csv-table td {
+  border-bottom-color: #1f2937; /* gray-800 */
+  border-right-color: #1f2937;
+  color: #d1d5db; /* gray-300 */
+}
+.dark .csv-table tbody tr:nth-child(even) td { background: #1a2332; }
+.dark .csv-table tbody tr:hover td { background: #1e3a5f; } /* blue tint */
+
 /* Material Symbols Outlined — weight 300, no fill, 20 px optical size */
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20;

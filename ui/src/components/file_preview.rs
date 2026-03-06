@@ -619,8 +619,8 @@ pub fn FilePreview() -> impl IntoView {
                                             </div>
 
                                             // Footer — row/column count.
-                                            <div class="flex-shrink-0 border-t border-gray-200 \
-                                                        bg-white px-3 py-1.5 text-xs text-gray-400 \
+                                            <div class="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 \
+                                                        bg-white dark:bg-gray-800 px-3 py-1.5 text-xs text-gray-400 \
                                                         text-center">
                                                 {format!("{row_count} rows \u{00d7} {col_count} columns")}
                                             </div>
