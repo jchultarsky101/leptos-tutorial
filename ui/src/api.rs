@@ -247,17 +247,21 @@ pub async fn get_stats() -> Result<common::dto::StatsDto, UiError> {
 
 /// Replace the text content of an existing file.
 ///
-/// Wraps `content` in a `Blob` (MIME type `text/markdown`) and sends it to
-/// `PUT /files/{path}` as multipart/form-data, which overwrites the file in
+/// Wraps `content` in a `Blob` with the supplied `content_type` and sends it
+/// to `PUT /files/{path}` as multipart/form-data, overwriting the file in
 /// place while preserving its metadata entry.
-pub async fn save_file_text(path: &CatalogPath, content: &str) -> Result<FileDto, UiError> {
+pub async fn save_file_text(
+    path: &CatalogPath,
+    content: &str,
+    content_type: &str,
+) -> Result<FileDto, UiError> {
     use js_sys::Array;
     use wasm_bindgen::JsValue;
 
     let arr = Array::new();
     arr.push(&JsValue::from_str(content));
     let opts = web_sys::BlobPropertyBag::new();
-    opts.set_type("text/markdown");
+    opts.set_type(content_type);
     let blob = web_sys::Blob::new_with_str_sequence_and_options(&arr, &opts).map_err(|e| {
         UiError::Network(
             e.as_string()
