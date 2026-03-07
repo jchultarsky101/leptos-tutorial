@@ -13,6 +13,7 @@ enum PreviewKind {
     Image,
     Markdown,
     Text,
+    Json,
     Csv,
     Stl,
     Unsupported,
@@ -44,8 +45,11 @@ fn classify(content_type: &str, filename: &str) -> PreviewKind {
     {
         return PreviewKind::Markdown;
     }
+    // JSON — checked before generic text/ for a dedicated kind.
+    if content_type.contains("json") || lower_name.ends_with(".json") {
+        return PreviewKind::Json;
+    }
     if content_type.starts_with("text/")
-        || content_type.contains("json")
         || content_type.contains("xml")
         || content_type.contains("javascript")
         || content_type.contains("typescript")
@@ -84,6 +88,25 @@ fn render_markdown(input: &str) -> String {
         .add_tag_attributes("input", &["type", "disabled", "checked"])
         .clean(&html_buf)
         .to_string()
+}
+
+// ── JSON helpers ──────────────────────────────────────────────────────────────
+
+/// Pretty-print JSON with 2-space indentation.
+/// Returns the input unchanged if it is not valid JSON.
+fn prettify_json(input: &str) -> String {
+    serde_json::from_str::<serde_json::Value>(input)
+        .ok()
+        .and_then(|v| serde_json::to_string_pretty(&v).ok())
+        .unwrap_or_else(|| input.to_owned())
+}
+
+/// Validate that `input` is well-formed JSON.
+/// Returns `Err` with a human-readable message on failure.
+fn validate_json(input: &str) -> Result<(), String> {
+    serde_json::from_str::<serde_json::Value>(input)
+        .map(|_| ())
+        .map_err(|e| format!("Invalid JSON: {e}"))
 }
 
 // ── STL Three.js interop ──────────────────────────────────────────────────────
@@ -230,9 +253,10 @@ pub fn FilePreview() -> impl IntoView {
                 let t = target?;
                 let kind = classify(&t.content_type, t.path.name());
                 match kind {
-                    PreviewKind::Text | PreviewKind::Markdown | PreviewKind::Csv => {
-                        Some(api::fetch_file_content(&t.path).await)
-                    }
+                    PreviewKind::Text
+                    | PreviewKind::Json
+                    | PreviewKind::Markdown
+                    | PreviewKind::Csv => Some(api::fetch_file_content(&t.path).await),
                     PreviewKind::Image | PreviewKind::Stl | PreviewKind::Unsupported => None,
                 }
             }
@@ -315,11 +339,16 @@ pub fn FilePreview() -> impl IntoView {
         }
     });
 
-    // Derived: is the current preview target a Markdown file?
-    let is_markdown = move || {
+    // Derived: is the current preview target an editable text kind?
+    let is_editable = move || {
         preview_file
             .get()
-            .map(|t| classify(&t.content_type, t.path.name()) == PreviewKind::Markdown)
+            .map(|t| {
+                matches!(
+                    classify(&t.content_type, t.path.name()),
+                    PreviewKind::Markdown | PreviewKind::Text | PreviewKind::Json
+                )
+            })
             .unwrap_or(false)
     };
 
@@ -336,22 +365,34 @@ pub fn FilePreview() -> impl IntoView {
                 }}
             </span>
             <div class="ml-2 flex-shrink-0 flex items-center gap-1">
-                // ── Edit button (view mode, Markdown only) ────────────────────
-                <Show when=move || is_markdown() && !is_editing.get()>
+                // ── Edit button (view mode, editable kinds only) ──────────────
+                <Show when=move || is_editable() && !is_editing.get()>
                     <button
                         class="p-0.5 rounded text-gray-400 \
                                hover:text-indigo-600 dark:hover:text-indigo-400 \
                                focus:outline-none transition-colors"
                         title="Edit"
                         on:click=move |_| {
-                            // Pre-populate textarea from committed or loaded text.
+                            let target = preview_file.get_untracked();
                             let current = committed_content.get_untracked().or_else(|| {
                                 text_resource
                                     .map(|r| r.clone())
                                     .and_then(|outer| outer)
                                     .and_then(|inner| inner.ok())
                             }).unwrap_or_default();
-                            edit_content.set(current);
+                            // JSON: pretty-print on open so the editor is readable.
+                            let content = if target
+                                .map(|t| {
+                                    classify(&t.content_type, t.path.name())
+                                        == PreviewKind::Json
+                                })
+                                .unwrap_or(false)
+                            {
+                                prettify_json(&current)
+                            } else {
+                                current
+                            };
+                            edit_content.set(content);
                             save_error.set(None);
                             is_editing.set(true);
                         }
@@ -372,10 +413,19 @@ pub fn FilePreview() -> impl IntoView {
                         on:click=move |_| {
                             let Some(target) = preview_file.get_untracked() else { return };
                             let content = edit_content.get_untracked();
+                            // JSON: validate before sending to the server.
+                            if classify(&target.content_type, target.path.name())
+                                == PreviewKind::Json
+                                && let Err(msg) = validate_json(&content)
+                            {
+                                save_error.set(Some(msg));
+                                return;
+                            }
                             saving.set(true);
                             save_error.set(None);
+                            let ct = target.content_type.clone();
                             wasm_bindgen_futures::spawn_local(async move {
-                                match api::save_file_text(&target.path, &content).await {
+                                match api::save_file_text(&target.path, &content, &ct).await {
                                     Ok(_) => {
                                         committed_content.set(Some(content));
                                         is_editing.set(false);
@@ -769,8 +819,8 @@ pub fn FilePreview() -> impl IntoView {
                 }
                 .into_any(),
 
-                // ── Text and Markdown ─────────────────────────────────────────
-                PreviewKind::Text | PreviewKind::Markdown => {
+                // ── Text, JSON and Markdown ───────────────────────────────────
+                PreviewKind::Text | PreviewKind::Json | PreviewKind::Markdown => {
                     match text_resource.map(|r| r.clone()) {
                         // Still loading.
                         None | Some(None) => view! {
@@ -870,14 +920,71 @@ pub fn FilePreview() -> impl IntoView {
                                 }
                                 .into_any()
                             } else {
+                                // ── Text / JSON editor ────────────────────────
                                 let text = text.clone();
                                 view! {
-                                    <div class="flex-1 overflow-auto p-4 bg-gray-50">
-                                        <pre class="text-xs font-mono text-gray-700 \
-                                                    whitespace-pre-wrap break-words \
-                                                    leading-relaxed">
-                                            {text}
-                                        </pre>
+                                    <div class="flex-1 flex flex-col overflow-hidden">
+                                        // Save-error banner.
+                                        <Show when=move || save_error.get().is_some()>
+                                            <div class="flex-shrink-0 px-4 pt-3">
+                                                <div class="text-xs text-red-600 \
+                                                            bg-red-50 dark:bg-red-900/30 \
+                                                            border border-red-200 \
+                                                            dark:border-red-700 \
+                                                            rounded px-3 py-2">
+                                                    {move || save_error.get().unwrap_or_default()}
+                                                </div>
+                                            </div>
+                                        </Show>
+
+                                        // Editor textarea (edit mode).
+                                        <Show when=move || is_editing.get()>
+                                            <div class="flex-1 min-h-0 p-4 flex flex-col">
+                                                <textarea
+                                                    class="flex-1 w-full min-h-0 font-mono \
+                                                           text-sm text-gray-800 \
+                                                           dark:text-gray-200 \
+                                                           bg-white dark:bg-gray-900 \
+                                                           border border-gray-300 \
+                                                           dark:border-gray-600 \
+                                                           rounded p-3 resize-none \
+                                                           focus:outline-none \
+                                                           focus:ring-2 focus:ring-indigo-500"
+                                                    prop:value=move || edit_content.get()
+                                                    on:input=move |e: web_sys::Event| {
+                                                        if let Some(el) = e
+                                                            .target()
+                                                            .and_then(|t| {
+                                                                t.dyn_into::<web_sys::HtmlTextAreaElement>().ok()
+                                                            })
+                                                        {
+                                                            edit_content.set(el.value());
+                                                        }
+                                                    }
+                                                />
+                                            </div>
+                                        </Show>
+
+                                        // Read-only pre (view mode).
+                                        // Reactive: shows committed_content after save.
+                                        <Show when=move || !is_editing.get()>
+                                            <div class="flex-1 overflow-auto p-4 \
+                                                        bg-gray-50 dark:bg-gray-800">
+                                                <pre class="text-xs font-mono \
+                                                            text-gray-700 dark:text-gray-300 \
+                                                            whitespace-pre-wrap break-words \
+                                                            leading-relaxed">
+                                                    {
+                                                        let text = text.clone();
+                                                        move || {
+                                                            committed_content
+                                                                .get()
+                                                                .unwrap_or_else(|| text.clone())
+                                                        }
+                                                    }
+                                                </pre>
+                                            </div>
+                                        </Show>
                                     </div>
                                 }
                                 .into_any()
@@ -894,7 +1001,7 @@ pub fn FilePreview() -> impl IntoView {
 
 #[cfg(test)]
 mod tests {
-    use super::{PreviewKind, classify, render_markdown};
+    use super::{PreviewKind, classify, prettify_json, render_markdown, validate_json};
 
     // ── classify ──────────────────────────────────────────────────────────────
 
@@ -930,6 +1037,58 @@ mod tests {
     #[test]
     fn classify_image() {
         assert_eq!(classify("image/png", "photo.png"), PreviewKind::Image);
+    }
+
+    #[test]
+    fn classify_json_by_extension() {
+        assert_eq!(classify("text/plain", "data.json"), PreviewKind::Json);
+        assert_eq!(classify("text/plain", "config.JSON"), PreviewKind::Json);
+    }
+
+    #[test]
+    fn classify_json_by_content_type() {
+        assert_eq!(classify("application/json", "data"), PreviewKind::Json);
+        assert_eq!(
+            classify("application/vnd.api+json", "data"),
+            PreviewKind::Json
+        );
+    }
+
+    #[test]
+    fn classify_text_plain() {
+        assert_eq!(classify("text/plain", "readme.txt"), PreviewKind::Text);
+    }
+
+    // ── prettify_json / validate_json ─────────────────────────────────────────
+
+    #[test]
+    fn prettify_json_formats_compact() {
+        let pretty = prettify_json(r#"{"a":1,"b":2}"#);
+        assert!(pretty.contains('\n'), "expected newlines in: {pretty}");
+        assert!(pretty.contains("  "), "expected indentation in: {pretty}");
+    }
+
+    #[test]
+    fn prettify_json_passthrough_invalid() {
+        let input = "not json at all";
+        assert_eq!(prettify_json(input), input);
+    }
+
+    #[test]
+    fn validate_json_ok() {
+        assert!(validate_json(r#"{"key": "value", "num": 42}"#).is_ok());
+        assert!(validate_json(r#"[1, 2, 3]"#).is_ok());
+    }
+
+    #[test]
+    fn validate_json_err() {
+        let result = validate_json("bad json");
+        assert!(result.is_err(), "expected error for invalid JSON");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("Invalid JSON"),
+            "expected 'Invalid JSON' in: {msg}"
+        );
     }
 
     // ── render_markdown ───────────────────────────────────────────────────────
