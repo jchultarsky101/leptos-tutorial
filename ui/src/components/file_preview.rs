@@ -969,7 +969,7 @@ pub fn FilePreview() -> impl IntoView {
                                         // Reactive: shows committed_content after save.
                                         <Show when=move || !is_editing.get()>
                                             <div class="flex-1 overflow-auto p-4 \
-                                                        bg-gray-50 dark:bg-gray-900">
+                                                        bg-gray-50 dark:bg-gray-800">
                                                 <pre class="text-xs font-mono \
                                                             text-gray-700 dark:text-gray-300 \
                                                             whitespace-pre-wrap break-words \
